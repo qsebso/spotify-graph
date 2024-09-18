@@ -1,4 +1,4 @@
-# Spotify Song Visualizer
+# Spotify Song Visualizer DOES THIS UPDATE WELL
 
 This is an [Observable Framework](https://observablehq.com/framework) app. To start the local preview server, run:
 
