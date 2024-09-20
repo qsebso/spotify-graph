@@ -6,14 +6,21 @@
     "build": "observable build",
     "dev": "observable preview",
     "deploy": "observable deploy",
-    "observable": "observable"
+    "observable": "observable",
+    "backend": "node server.js",
+    "start": "concurrently \"npm run backend\" \"npm run dev\""
   },
   "dependencies": {
     "@observablehq/framework": "^1.11.0",
+    "axios": "^1.7.7",
+    "cors": "^2.8.5",
     "d3-dsv": "^3.0.1",
-    "d3-time-format": "^4.1.0"
+    "d3-time-format": "^4.1.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0"
   },
   "devDependencies": {
+    "concurrently": "^9.0.1",
     "rimraf": "^5.0.5"
   },
   "engines": {
