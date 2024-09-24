@@ -3,80 +3,64 @@ toc: false
 ---
 
 <div class="hero">
-  <h1>Spotify Project</h1>
-  <h2>This visualizer will automatically show all albums by the artist Glaive.</h2>
+  <h1>Spotify Listening Data Visualizer</h1>
+  <h2>This tool allows you to upload your Spotify listening history and visualize your top songs over time, including recommendations based on your listening behavior.</h2>
 </div>
 
-<div id="albums-list" style="padding: 20px; background-color: #1e1e1e; color: #fff; border-radius: 10px; margin: 20px;">
-  <h3>Fetching albums by Glaive...</h3>
-  <ul id="album-list" style="list-style-type: none; padding: 0;"></ul>
+<!-- Section for Drag and Drop / File Upload -->
+<div id="upload-container" style="padding: 20px; background-color: #1e1e1e; color: #fff; border-radius: 10px; margin: 20px;">
+  <h3>Upload your Spotify Data (drag and drop .zip file):</h3>
+  
+  <!-- This will be the drag-and-drop or file input area -->
+  <!-- Comment: Replace this section with actual drag-and-drop file upload logic -->
+  <div id="file-dropzone" style="padding: 40px; border: 2px dashed #fff; border-radius: 10px; text-align: center;">
+    Drag and drop your Spotify data zip file here, or click to upload.
+  </div>
+</div>
+
+<!-- Section for Visualization -->
+<div id="visualization-section" style="padding: 20px; background-color: #333; color: #fff; border-radius: 10px; margin: 20px;">
+  <h3>Visualization of Your Top Songs Over Time</h3>
+  
+  <!-- Placeholder for future chart visualization -->
+  <!-- Comment: Insert D3.js or Plot.js chart generation code here -->
+  <div id="chart-container" style="width: 100%; height: 500px;">
+    <!-- Visualization will be rendered here -->
+  </div>
+</div>
+
+<!-- Section for Song Recommendations -->
+<div id="recommendation-section" style="padding: 20px; background-color: #1e1e1e; color: #fff; border-radius: 10px; margin: 20px;">
+  <h3>Recommended Songs Based on Your Listening History</h3>
+  
+  <!-- Placeholder for song recommendations -->
+  <!-- Comment: Insert logic for fetching and displaying song recommendations here -->
+  <ul id="recommendation-list" style="list-style-type: none; padding: 0;">
+    <!-- Recommendations will be displayed here -->
+  </ul>
 </div>
 
 <script>
-  console.log("Script is running");
+  console.log("Initializing the page");
 
-  let token;
-  let tokenExpiryTime;
+  // Comment: File drop area logic
+  document.getElementById('file-dropzone').addEventListener('click', function() {
+    alert('File upload will be implemented here.');
+  });
 
-  function fetchToken() {
-    return fetch('http://localhost:8888/token')
-      .then(response => response.json())
-      .then(data => {
-        token = data.access_token;
-        tokenExpiryTime = Date.now() + data.expires_in * 1000; // Set expiration time
-        console.log('New Token:', token);
-      });
-  }
-
-  // Step 1: Search for the artist 'Glaive' to get their artist ID
-  async function getArtistID() {
-    if (!token || Date.now() >= tokenExpiryTime) {
-      await fetchToken();  // Fetch a new token if expired
-    }
-    return fetch(`https://api.spotify.com/v1/search?q=itzy&type=artist`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    .then(res => res.json())
-    .then(data => {
-      const artist = data.artists.items[0];  // Get the first artist result
-      console.log("Artist found:", artist.name, artist.id);
-      return artist.id;
-    })
-    .catch(error => {
-      console.error('Error fetching artist:', error);
-      document.getElementById('albums-list').innerHTML = `<h3>Error fetching artist. Please try again later.</h3>`;
-    });
-  }
-
-  // Step 2: Use the artist ID to fetch their albums
-  async function getAlbumsByArtist(artistID) {
-    console.log("Fetching albums for artist ID:", artistID);
-    return fetch(`https://api.spotify.com/v1/artists/${artistID}/albums`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    .then(res => res.json())
-    .then(data => {
-      const albumList = document.getElementById('album-list');
-      albumList.innerHTML = ''; // Clear any existing data
-      data.items.forEach((album, index) => {
-        const listItem = document.createElement('li');
-        listItem.innerHTML = `<strong>${index + 1}. ${album.name}</strong> (${album.release_date})`;
-        albumList.appendChild(listItem);
-      });
-    })
-    .catch(error => {
-      console.error('Error fetching albums:', error);
-      document.getElementById('albums-list').innerHTML = `<h3>Error fetching albums. Please try again later.</h3>`;
-    });
-  }
-
-  // Fetch Glaive's albums when the page loads
-  window.onload = async function() {
-    const artistID = await getArtistID();
-    if (artistID) {
-      getAlbumsByArtist(artistID);
+  // Comment: Placeholder logic for fetching token and data
+  async function fetchSpotifyData() {
+    try {
+      let tokenResponse = await fetch('http://localhost:8888/token');
+      let tokenData = await tokenResponse.json();
+      console.log('Spotify API token received:', tokenData.access_token);
+    } catch (error) {
+      console.error('Error fetching Spotify token:', error);
     }
   }
+
+  // Call function to get Spotify data
+  fetchSpotifyData();
 </script>
 
 <style>
@@ -117,6 +101,11 @@ toc: false
   .hero h1 {
     font-size: 90px;
   }
+}
+
+#upload-container, #visualization-section, #recommendation-section {
+  max-width: 900px;
+  margin: 0 auto;
 }
 
 </style>
