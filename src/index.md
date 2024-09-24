@@ -3,7 +3,7 @@ toc: false
 ---
 
 <div class="hero">
-  <h1>Your Spotify Glaive Album Finder</h1>
+  <h1>Spotify Project</h1>
   <h2>This visualizer will automatically show all albums by the artist Glaive.</h2>
 </div>
 
@@ -33,7 +33,7 @@ toc: false
     if (!token || Date.now() >= tokenExpiryTime) {
       await fetchToken();  // Fetch a new token if expired
     }
-    return fetch(`https://api.spotify.com/v1/search?q=kidcudi&type=artist`, {
+    return fetch(`https://api.spotify.com/v1/search?q=itzy&type=artist`, {
       headers: { Authorization: `Bearer ${token}` }
     })
     .then(res => res.json())
@@ -80,7 +80,6 @@ toc: false
 </script>
 
 <style>
-
 .hero {
   display: flex;
   flex-direction: column;
