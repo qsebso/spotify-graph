@@ -12,10 +12,11 @@ toc: false
   <h3>Upload your Spotify Data (drag and drop .zip file):</h3>
   
   <!-- This will be the drag-and-drop or file input area -->
-  <!-- Comment: Replace this section with actual drag-and-drop file upload logic -->
   <div id="file-dropzone" style="padding: 40px; border: 2px dashed #fff; border-radius: 10px; text-align: center;">
     Drag and drop your Spotify data zip file here, or click to upload.
   </div>
+
+  <input type="file" id="file-input" style="display: none;" />
 </div>
 
 <!-- Section for Visualization -->
@@ -23,7 +24,6 @@ toc: false
   <h3>Visualization of Your Top Songs Over Time</h3>
   
   <!-- Placeholder for future chart visualization -->
-  <!-- Comment: Insert D3.js or Plot.js chart generation code here -->
   <div id="chart-container" style="width: 100%; height: 500px;">
     <!-- Visualization will be rendered here -->
   </div>
@@ -34,7 +34,6 @@ toc: false
   <h3>Recommended Songs Based on Your Listening History</h3>
   
   <!-- Placeholder for song recommendations -->
-  <!-- Comment: Insert logic for fetching and displaying song recommendations here -->
   <ul id="recommendation-list" style="list-style-type: none; padding: 0;">
     <!-- Recommendations will be displayed here -->
   </ul>
@@ -43,12 +42,63 @@ toc: false
 <script>
   console.log("Initializing the page");
 
-  // Comment: File drop area logic
-  document.getElementById('file-dropzone').addEventListener('click', function() {
-    alert('File upload will be implemented here.');
+  // Handle file drop and drag events
+  const fileDropzone = document.getElementById('file-dropzone');
+  const fileInput = document.getElementById('file-input');
+
+  // Handle drag over to show that the area is active
+  fileDropzone.addEventListener('dragover', (event) => {
+    event.preventDefault();
+    fileDropzone.style.backgroundColor = '#444'; // Optional styling to show active drag area
   });
 
-  // Comment: Placeholder logic for fetching token and data
+  // Reset background color when file is dragged out
+  fileDropzone.addEventListener('dragleave', () => {
+    fileDropzone.style.backgroundColor = '#1e1e1e';
+  });
+
+  // Handle file drop
+  fileDropzone.addEventListener('drop', (event) => {
+    event.preventDefault();
+    fileDropzone.style.backgroundColor = '#1e1e1e'; // Reset background color
+    const files = event.dataTransfer.files;
+    if (files.length > 0) {
+      handleFileUpload(files[0]); // Send the first file (assumed .zip)
+    }
+  });
+
+  // Fallback to file select via click
+  fileDropzone.addEventListener('click', () => {
+    fileInput.click(); // Trigger file selection dialog
+  });
+
+  fileInput.addEventListener('change', (event) => {
+    const files = event.target.files;
+    if (files.length > 0) {
+      handleFileUpload(files[0]); // Handle file selection
+    }
+  });
+
+  // Function to handle file upload to backend
+  function handleFileUpload(file) {
+    const formData = new FormData();
+    formData.append('datafile', file);
+
+    fetch('http://localhost:8888/upload', {
+      method: 'POST',
+      body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+      console.log('File uploaded successfully:', data);
+      // Further logic to process data
+    })
+    .catch(error => {
+      console.error('Error uploading file:', error);
+    });
+  }
+
+  // Fetch Spotify token (as a placeholder)
   async function fetchSpotifyData() {
     try {
       let tokenResponse = await fetch('http://localhost:8888/token');
@@ -103,9 +153,23 @@ toc: false
   }
 }
 
+/* Styling for upload, visualization, and recommendation sections */
 #upload-container, #visualization-section, #recommendation-section {
   max-width: 900px;
   margin: 0 auto;
+  padding: 20px;
 }
 
+#file-dropzone {
+  padding: 40px;
+  border: 2px dashed #fff;
+  border-radius: 10px;
+  text-align: center;
+  transition: background-color 0.3s;
+}
+
+#chart-container {
+  width: 100%;
+  height: 500px;
+}
 </style>
