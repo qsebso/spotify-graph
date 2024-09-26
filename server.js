@@ -84,6 +84,7 @@ function clearUnzippedFolder(callback) {
     });
   });
 }
+
 // Function to recursively filter out files starting with "StreamingHistory_music_"
 function filterStreamingHistoryFiles(directoryPath) {
   const relevantFiles = [];
@@ -146,8 +147,12 @@ app.post('/upload', upload.single('datafile'), (req, res) => {
           });
         }
 
-        // --- Block 1: Cumulative Snapshot Processing ---
-        const cumulativePlaytime = {};
+        // --- Block 1: Cumulative Snapshot Processing in 3-Day Intervals ---
+        const cumulativePlaytime = {};  // Store cumulative playtime across all songs
+        const cumulativeByInterval = {};  // Store cumulative playtime for each 3-day interval
+
+        // Initialize previous interval
+        let previousIntervalData = {};
 
         // Loop over each StreamingHistory file and process the playtime data
         streamingHistoryFiles.forEach((filePath) => {
@@ -156,25 +161,43 @@ app.post('/upload', upload.single('datafile'), (req, res) => {
             const jsonData = JSON.parse(fileContents);
 
             jsonData.forEach((entry) => {
-              const endTime = new Date(entry.endTime);
               const trackName = entry.trackName;
+              const endTime = new Date(entry.endTime);
+              const intervalStart = getIntervalStart(endTime, SNAPSHOT_DAYS).toISOString();
 
+              // If we enter a new interval, carry over songs from the previous interval
+              if (!cumulativeByInterval[intervalStart]) {
+                cumulativeByInterval[intervalStart] = { ...previousIntervalData };
+              }
+
+              // Track cumulative playtime across all intervals
               if (!cumulativePlaytime[trackName]) {
                 cumulativePlaytime[trackName] = 0;
               }
 
               cumulativePlaytime[trackName] += entry.msPlayed;
+
+              // Track cumulative playtime per interval
+              cumulativeByInterval[intervalStart][trackName] = cumulativePlaytime[trackName];
+
+              // Update previous interval data
+              previousIntervalData = { ...cumulativeByInterval[intervalStart] };
             });
           } catch (err) {
             console.error(`Error processing ${filePath}:`, err);
           }
         });
 
-        // Sort cumulative playtime and take the top N
-        const sortedCumulative = Object.entries(cumulativePlaytime).sort((a, b) => b[1] - a[1]);
-        const topCumulativeSongs = sortedCumulative.slice(0, TOP_N);
+        // Sort the cumulative data for each interval and store it
+        Object.keys(cumulativeByInterval).forEach((intervalKey) => {
+          const songsInInterval = cumulativeByInterval[intervalKey];
+          const sortedSongs = Object.entries(songsInInterval).sort((a, b) => b[1] - a[1]);
+          cumulativeByInterval[intervalKey] = Object.fromEntries(sortedSongs);
+        });
 
-        console.log('Top Cumulative Songs:', topCumulativeSongs);
+        // Save cumulative data per 3-day interval to file
+        fs.writeFileSync(path.join(__dirname, 'cumulative_by_interval.json'), JSON.stringify(cumulativeByInterval, null, 2));
+        console.log('Cumulative data per interval saved to cumulative_by_interval.json');
 
         // --- Block 2: Non-Cumulative Snapshot Processing ---
         const playtimeByInterval = {};
@@ -215,9 +238,13 @@ app.post('/upload', upload.single('datafile'), (req, res) => {
 
         console.log('Top Songs by Interval:', topSongsByInterval);
 
+        // Save non-cumulative snapshot data to file
+        fs.writeFileSync(path.join(__dirname, 'non_cumulative_songs.json'), JSON.stringify(topSongsByInterval, null, 2));
+        console.log('Non-cumulative songs data saved to non_cumulative_songs.json');
+
         res.json({
           message: 'File uploaded and processed successfully',
-          topCumulativeSongs,
+          cumulativePlaytime: cumulativeByInterval,
           topSongsByInterval
         });
       })
@@ -227,6 +254,7 @@ app.post('/upload', upload.single('datafile'), (req, res) => {
       });
   });
 });
+
 // Route to list uploaded files
 app.get('/files', (req, res) => {
   fs.readdir('uploads/unzipped', (err, files) => {
