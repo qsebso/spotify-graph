@@ -7,6 +7,10 @@ import axios from 'axios';
 import dotenv from 'dotenv';
 import unzipper from 'unzipper';  // Add unzipper for unzipping .zip files
 
+// Define constants for easy adjustments
+const TOP_N = 10;  // Modify this number to adjust how many top songs to select
+const SNAPSHOT_DAYS = 3; // Modify this to control how many days are considered per non-cumulative snapshot
+
 dotenv.config(); // Load environment variables
 
 const app = express();
@@ -80,7 +84,6 @@ function clearUnzippedFolder(callback) {
     });
   });
 }
-
 // Function to recursively filter out files starting with "StreamingHistory_music_"
 function filterStreamingHistoryFiles(directoryPath) {
   const relevantFiles = [];
@@ -105,6 +108,13 @@ function filterStreamingHistoryFiles(directoryPath) {
   searchDirectory(directoryPath);
 
   return relevantFiles;
+}
+
+// Function to calculate the start of the N-day interval
+function getIntervalStart(date, days = 3) {
+  const msInInterval = days * 24 * 60 * 60 * 1000; // N days in milliseconds
+  const intervalStart = Math.floor(date.getTime() / msInInterval) * msInInterval;
+  return new Date(intervalStart); // Return the start of the interval as a Date object
 }
 
 // File upload route with unzipping logic
@@ -136,35 +146,79 @@ app.post('/upload', upload.single('datafile'), (req, res) => {
           });
         }
 
-        // --- BLOCK 1: You can process the `streamingHistoryFiles` here ---
-        // At this point, `streamingHistoryFiles` contains the paths to the
-        // StreamingHistory_music_*.json files. You can read and process them.
+        // --- Block 1: Cumulative Snapshot Processing ---
+        const cumulativePlaytime = {};
 
-        // --- Your data processing code goes here ---
-        // Example: Read the content of each file, and aggregate the data.
-        // --- BLOCK 1: Reading the contents of the files ---
+        // Loop over each StreamingHistory file and process the playtime data
         streamingHistoryFiles.forEach((filePath) => {
           try {
-            // Read the file content
             const fileContents = fs.readFileSync(filePath, 'utf8');
-            
-            // Parse the JSON content
             const jsonData = JSON.parse(fileContents);
-            
-            // Log the contents to the console
-            console.log(`Contents of ${filePath}:`, jsonData);
+
+            jsonData.forEach((entry) => {
+              const endTime = new Date(entry.endTime);
+              const trackName = entry.trackName;
+
+              if (!cumulativePlaytime[trackName]) {
+                cumulativePlaytime[trackName] = 0;
+              }
+
+              cumulativePlaytime[trackName] += entry.msPlayed;
+            });
           } catch (err) {
-            console.error(`Error reading or parsing ${filePath}:`, err);
+            console.error(`Error processing ${filePath}:`, err);
           }
         });
 
-        // - Read and parse JSON
-        // - Perform operations like aggregating 3-day playtime totals
-        // - Prepare data for your bar chart race
+        // Sort cumulative playtime and take the top N
+        const sortedCumulative = Object.entries(cumulativePlaytime).sort((a, b) => b[1] - a[1]);
+        const topCumulativeSongs = sortedCumulative.slice(0, TOP_N);
+
+        console.log('Top Cumulative Songs:', topCumulativeSongs);
+
+        // --- Block 2: Non-Cumulative Snapshot Processing ---
+        const playtimeByInterval = {};
+
+        streamingHistoryFiles.forEach((filePath) => {
+          try {
+            const fileContents = fs.readFileSync(filePath, 'utf8');
+            const jsonData = JSON.parse(fileContents);
+
+            jsonData.forEach((entry) => {
+              const endTime = new Date(entry.endTime);
+              const intervalStart = getIntervalStart(endTime, SNAPSHOT_DAYS).toISOString();
+              const trackName = entry.trackName;
+
+              if (!playtimeByInterval[intervalStart]) {
+                playtimeByInterval[intervalStart] = {};
+              }
+
+              if (!playtimeByInterval[intervalStart][trackName]) {
+                playtimeByInterval[intervalStart][trackName] = 0;
+              }
+
+              playtimeByInterval[intervalStart][trackName] += entry.msPlayed;
+            });
+          } catch (err) {
+            console.error(`Error processing ${filePath}:`, err);
+          }
+        });
+
+        // Process each interval and get the top N songs
+        const topSongsByInterval = {};
+
+        Object.keys(playtimeByInterval).forEach((intervalKey) => {
+          const songsInInterval = playtimeByInterval[intervalKey];
+          const sortedSongs = Object.entries(songsInInterval).sort((a, b) => b[1] - a[1]);
+          topSongsByInterval[intervalKey] = sortedSongs.slice(0, TOP_N);
+        });
+
+        console.log('Top Songs by Interval:', topSongsByInterval);
 
         res.json({
-          message: 'File uploaded and unzipped successfully',
-          streamingHistoryFiles: streamingHistoryFiles
+          message: 'File uploaded and processed successfully',
+          topCumulativeSongs,
+          topSongsByInterval
         });
       })
       .on('error', (err) => {
@@ -173,20 +227,19 @@ app.post('/upload', upload.single('datafile'), (req, res) => {
       });
   });
 });
-
 // Route to list uploaded files
 app.get('/files', (req, res) => {
   fs.readdir('uploads/unzipped', (err, files) => {
     if (err) {
       return res.status(500).send('Unable to scan uploads directory.');
     }
-    const fileList = files.map(file => {
+    const fileList = files.map((file) => {
       const filePath = path.join('uploads/unzipped', file);
       const stat = fs.statSync(filePath);
       return {
         filename: file,
         size: stat.size,
-        uploadedAt: stat.mtime
+        uploadedAt: stat.mtime,
       };
     });
     res.json(fileList);
