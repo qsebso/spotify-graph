@@ -163,10 +163,11 @@ app.post('/upload', upload.single('datafile'), (req, res) => {
             jsonData.forEach((entry) => {
               const trackName = entry.trackName;
               const endTime = new Date(entry.endTime);
-              const intervalStart = getIntervalStart(endTime, SNAPSHOT_DAYS).toISOString();
+              const intervalStart = getIntervalStart(endTime, SNAPSHOT_DAYS).toISOString().split("T")[0]; // Format as YYYY-MM-DD
 
               // If we enter a new interval, carry over songs from the previous interval
               if (!cumulativeByInterval[intervalStart]) {
+                // Carry over all songs from the previous interval to maintain cumulative playtime
                 cumulativeByInterval[intervalStart] = { ...previousIntervalData };
               }
 
@@ -177,10 +178,10 @@ app.post('/upload', upload.single('datafile'), (req, res) => {
 
               cumulativePlaytime[trackName] += entry.msPlayed;
 
-              // Track cumulative playtime per interval
+              // Track cumulative playtime per interval (ensure it's not overwritten)
               cumulativeByInterval[intervalStart][trackName] = cumulativePlaytime[trackName];
 
-              // Update previous interval data
+              // Update previous interval data to carry forward
               previousIntervalData = { ...cumulativeByInterval[intervalStart] };
             });
           } catch (err) {
@@ -188,16 +189,17 @@ app.post('/upload', upload.single('datafile'), (req, res) => {
           }
         });
 
-        // Sort the cumulative data for each interval and store it
-        Object.keys(cumulativeByInterval).forEach((intervalKey) => {
-          const songsInInterval = cumulativeByInterval[intervalKey];
-          const sortedSongs = Object.entries(songsInInterval).sort((a, b) => b[1] - a[1]);
-          cumulativeByInterval[intervalKey] = Object.fromEntries(sortedSongs);
-        });
+        // Now convert the cumulativeByInterval object to the desired format
+        const cumulativeDataForBarChart = Object.keys(cumulativeByInterval).map(interval => ({
+          date: interval,
+          songs: Object.entries(cumulativeByInterval[interval])
+            .map(([name, playtime]) => ({ name, playtime }))  // Convert to the correct format
+            .sort((a, b) => b.playtime - a.playtime)  // Sort by playtime
+        }));
 
-        // Save cumulative data per 3-day interval to file
-        fs.writeFileSync(path.join(__dirname, 'cumulative_by_interval.json'), JSON.stringify(cumulativeByInterval, null, 2));
-        console.log('Cumulative data per interval saved to cumulative_by_interval.json');
+        // Save cumulative data per 3-day interval to file in the new format
+        fs.writeFileSync(path.join(__dirname, 'cumulative_for_barchart.json'), JSON.stringify(cumulativeDataForBarChart, null, 2));
+        console.log('Cumulative data per interval saved to cumulative_for_barchart.json');
 
         // --- Block 2: Non-Cumulative Snapshot Processing ---
         const playtimeByInterval = {};
