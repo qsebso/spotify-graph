@@ -118,6 +118,17 @@ function getIntervalStart(date, days = 3) {
   return new Date(intervalStart); // Return the start of the interval as a Date object
 }
 
+// Function for readable time for the data
+function msToReadableTime(ms) {
+  const minutes = ms / 60000;
+  if (minutes > 60) {
+    const hours = (minutes / 60).toFixed(2);
+    return `${hours} hours`;
+  } else {
+    return `${Math.round(minutes)} min`;
+  }
+}
+
 // File upload route with unzipping logic
 app.post('/upload', upload.single('datafile'), (req, res) => {
   if (!req.file) {
@@ -165,6 +176,9 @@ app.post('/upload', upload.single('datafile'), (req, res) => {
               const endTime = new Date(entry.endTime);
               const intervalStart = getIntervalStart(endTime, SNAPSHOT_DAYS).toISOString().split("T")[0]; // Format as YYYY-MM-DD
 
+              const artistName = entry.artistName || 'Unknown Artist'; // Ensure this field exists
+              const songWithArtist = `${trackName} (${artistName})`; // Combine song name and artist
+
               // If we enter a new interval, carry over songs from the previous interval
               if (!cumulativeByInterval[intervalStart]) {
                 // Carry over all songs from the previous interval to maintain cumulative playtime
@@ -172,14 +186,14 @@ app.post('/upload', upload.single('datafile'), (req, res) => {
               }
 
               // Track cumulative playtime across all intervals
-              if (!cumulativePlaytime[trackName]) {
-                cumulativePlaytime[trackName] = 0;
+              if (!cumulativePlaytime[songWithArtist]) {
+                cumulativePlaytime[songWithArtist] = 0;
               }
 
-              cumulativePlaytime[trackName] += entry.msPlayed;
+              cumulativePlaytime[songWithArtist] += entry.msPlayed;
 
               // Track cumulative playtime per interval (ensure it's not overwritten)
-              cumulativeByInterval[intervalStart][trackName] = cumulativePlaytime[trackName];
+              cumulativeByInterval[intervalStart][songWithArtist] = cumulativePlaytime[songWithArtist];
 
               // Update previous interval data to carry forward
               previousIntervalData = { ...cumulativeByInterval[intervalStart] };
@@ -193,7 +207,7 @@ app.post('/upload', upload.single('datafile'), (req, res) => {
         const cumulativeDataForBarChart = Object.keys(cumulativeByInterval).map(interval => ({
           date: interval,
           songs: Object.entries(cumulativeByInterval[interval])
-            .map(([name, playtime]) => ({ name, playtime }))  // Convert to the correct format
+            .map(([name, playtime]) => ({ name, playtime: (playtime) })) // Convert ms to readable time
             .sort((a, b) => b.playtime - a.playtime)  // Sort by playtime
         }));
 
@@ -241,7 +255,7 @@ app.post('/upload', upload.single('datafile'), (req, res) => {
         console.log('Top Songs by Interval:', topSongsByInterval);
 
         // Save non-cumulative snapshot data to file
-        fs.writeFileSync(path.join(__dirname, 'non_cumulative_songs.json'), JSON.stringify(topSongsByInterval, null, 2));
+        fs.writeFileSync(path.join(__dirname, 'cumulative_for_barchart.json'), JSON.stringify(cumulativeDataForBarChart, null, 2));
         console.log('Non-cumulative songs data saved to non_cumulative_songs.json');
 
         res.json({
@@ -273,6 +287,34 @@ app.get('/files', (req, res) => {
       };
     });
     res.json(fileList);
+  });
+});
+
+// Route to the barchart file
+app.get('/cumulative_for_barchart', (req, res) => {
+  const filePath = path.join(__dirname, 'cumulative_for_barchart.json');
+  
+  fs.access(filePath, fs.constants.F_OK, (err) => {
+    if (err) {
+      console.error('File not found:', filePath); // Log error
+      return res.status(404).send('File not found');
+    }
+    
+    res.sendFile(filePath);
+  });
+});
+
+// Route to the barchart file
+app.get('/sample_cumulative_for_barchart', (req, res) => {
+  const filePath = path.join(__dirname, 'sample_cumulative_for_barchart.json');
+  
+  fs.access(filePath, fs.constants.F_OK, (err) => {
+    if (err) {
+      console.error('File not found:', filePath); // Log error
+      return res.status(404).send('File not found');
+    }
+    
+    res.sendFile(filePath);
   });
 });
 
