@@ -61,7 +61,7 @@
   const height = 600 - margin.top - margin.bottom;
 
   // Number of top songs to display
-  const n = 10;
+  const n = 15; // create it so that the user can increase or decreasae this number
 
   // Create the SVG container
   const svg = d3.select("#chart-container")
