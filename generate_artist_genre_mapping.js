@@ -20,6 +20,22 @@ function delay(ms) {
 // Main function to generate artist-genre mapping
 async function generateArtistGenreMapping() {
   try {
+    // Load existing artist-genre mapping if it exists
+    let artistGenreMapping = {};
+    try {
+      const mappingPath = path.join(__dirname, 'artist_genre_mapping.json');
+      if (fs.existsSync(mappingPath)) {
+        const mappingContents = fs.readFileSync(mappingPath, 'utf8');
+        artistGenreMapping = JSON.parse(mappingContents);
+        console.log('Loaded existing artist_genre_mapping.json');
+      } else {
+        console.log('No existing artist_genre_mapping.json found. Creating a new one.');
+      }
+    } catch (error) {
+      console.error('Error loading existing artist_genre_mapping.json:', error);
+      artistGenreMapping = {};
+    }
+
     // Load the list of artist names from your data
     const dataDir = path.join(__dirname, 'uploads/unzipped');
     const artistSet = new Set();
@@ -37,7 +53,7 @@ async function generateArtistGenreMapping() {
           streamingHistoryFiles = streamingHistoryFiles.concat(
             getAllStreamingHistoryFiles(fullPath)
           );
-        } else if (/^StreamingHistory_music_\d+\.json$/.test(file)) {
+        } else if (/^StreamingHistory_music.*\.json$/.test(file)) {
           streamingHistoryFiles.push(fullPath);
         }
       });
@@ -59,7 +75,19 @@ async function generateArtistGenreMapping() {
 
     const artistNames = Array.from(artistSet);
 
-    console.log(`Total unique artists found: ${artistNames.length}`);
+    console.log(`Total unique artists found in data: ${artistNames.length}`);
+
+    // Identify artists not in the existing mapping
+    const newArtistNames = artistNames.filter(
+      (artistName) => !artistGenreMapping.hasOwnProperty(artistName)
+    );
+
+    console.log(`Artists not in existing mapping: ${newArtistNames.length}`);
+
+    if (newArtistNames.length === 0) {
+      console.log('All artists are already in the mapping. No new artists to process.');
+      return;
+    }
 
     // Get Spotify access token
     const clientId = process.env.CLIENT_ID;
@@ -80,6 +108,7 @@ async function generateArtistGenreMapping() {
         }
       );
       spotifyToken = tokenResponse.data.access_token;
+      console.log('Spotify access token acquired.');
     } catch (error) {
       console.error(
         'Error fetching Spotify token:',
@@ -87,8 +116,6 @@ async function generateArtistGenreMapping() {
       );
       return;
     }
-
-    const artistGenreMapping = {};
 
     // Function to fetch artist genres with retry mechanism
     async function fetchArtistGenres(artistName, index, total) {
@@ -150,7 +177,9 @@ async function generateArtistGenreMapping() {
       }
 
       if (!success) {
-        console.error(`Failed to fetch genres for ${artistName} after ${maxRetries} retries.`);
+        console.error(
+          `Failed to fetch genres for ${artistName} after ${maxRetries} retries.`
+        );
         artistGenreMapping[artistName] = ['Unknown Genre'];
       }
 
@@ -158,23 +187,23 @@ async function generateArtistGenreMapping() {
       console.log(`Processed ${index + 1}/${total}: ${artistName}`);
 
       // Delay between requests to avoid hitting rate limits
-      await delay(1); // Wait 1 second between requests
+      await delay(500); // Wait 0.5 seconds between requests
     }
 
     // Sequential processing to respect rate limits
-    const totalArtists = artistNames.length;
-    for (let i = 0; i < totalArtists; i++) {
-      const artistName = artistNames[i];
-      await fetchArtistGenres(artistName, i, totalArtists);
+    const totalNewArtists = newArtistNames.length;
+    for (let i = 0; i < totalNewArtists; i++) {
+      const artistName = newArtistNames[i];
+      await fetchArtistGenres(artistName, i, totalNewArtists);
     }
 
-    // Save the artist-genre mapping to a JSON file
+    // Save the updated artist-genre mapping to the JSON file
     fs.writeFileSync(
       path.join(__dirname, 'artist_genre_mapping.json'),
       JSON.stringify(artistGenreMapping, null, 2)
     );
 
-    console.log('Artist-genre mapping saved to artist_genre_mapping.json');
+    console.log('Artist-genre mapping updated and saved to artist_genre_mapping.json');
   } catch (error) {
     console.error('Error generating artist-genre mapping:', error);
   }
