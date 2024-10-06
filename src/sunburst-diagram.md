@@ -14,20 +14,17 @@ title: Artist & Genre Recommendations
       color: white;
       text-align: center;
     }
-
     svg {
       width: 800px;
       height: 800px;
       display: block;
       margin: 0 auto;
     }
-
     input {
       width: 200px;
       margin: 5px;
       color: black;
     }
-
     button {
       background-color: #4CAF50;
       border: none;
@@ -38,12 +35,10 @@ title: Artist & Genre Recommendations
       margin: 4px 2px;
       cursor: pointer;
     }
-
     .clickable:hover {
       cursor: pointer;
       fill-opacity: 0.8;
     }
-
     #selectedList {
       margin: 20px auto;
       max-width: 400px;
@@ -51,18 +46,15 @@ title: Artist & Genre Recommendations
       padding: 10px;
       border-radius: 10px;
     }
-
     .selected-item {
       display: flex;
       justify-content: space-between;
       margin: 5px 0;
     }
-
     #recommendations ul {
       list-style-type: none;
       padding: 0;
     }
-
     #recommendations li {
       margin: 5px 0;
     }
@@ -182,10 +174,17 @@ title: Artist & Genre Recommendations
           .style("fill", d => color((d.children ? d : d.parent).data.name))
           .on("click", (event, d) => {
             const name = d.data.name;
+
             if (d.depth === 1) {
-              selectedGenres.add(name);  // Add genre
+              // Genre selection has no limit
+              selectedGenres.add(name);  
             } else if (d.depth === 2) {
-              selectedArtists.add(name);  // Add artist
+              // Limit artist selection to 5
+              if (selectedArtists.size >= 5 && !selectedArtists.has(name)) {
+                alert("You can only select up to 5 artists.");
+                return;
+              }
+              selectedArtists.add(name);
             }
             updateSelectedItems();  // Update the UI to reflect the selection
           });
@@ -207,6 +206,7 @@ title: Artist & Genre Recommendations
             return angle < 0.05 ? "0px" : "12px";  // Hide text for small segments
           });
       }
+
 
       // Load data and create the sunburst chart
       function loadDataAndCreateSunburst(maxGenres, maxArtistsPerGenre) {
