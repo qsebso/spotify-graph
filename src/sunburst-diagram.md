@@ -1,7 +1,3 @@
----
-title: Artist & Genre Recommendations 
----
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -58,6 +54,17 @@ title: Artist & Genre Recommendations
     #recommendations li {
       margin: 5px 0;
     }
+    /* Tooltip styling */
+    .tooltip {
+      position: absolute;
+      background-color: lightsteelblue;
+      color: black;
+      padding: 5px;
+      border-radius: 5px;
+      font-size: 12px;
+      pointer-events: none;
+      visibility: hidden;
+    }
   </style>
 </head>
 <body>
@@ -73,6 +80,7 @@ title: Artist & Genre Recommendations
   </div>
   <div>
     <button id="updateChart">Update Chart</button>
+    <button id="toggleMinSize">Toggle Minimum Size</button> <!-- New Button -->
   </div>
 
   <div id="chart"></div>
@@ -84,11 +92,13 @@ title: Artist & Genre Recommendations
     <button id="getRecommendations" style="display:none;">Get Recommendations</button>
   </div>
 
+  <!-- Tooltip for hover -->
+  <div id="tooltip" class="tooltip"></div>
+
   <!-- D3.js library -->
   <script src="https://d3js.org/d3.v6.min.js"></script>
 
   <script>
-    // Ensure the script runs after the DOM is loaded
     document.addEventListener('DOMContentLoaded', function() {
       const margin = {top: 10, right: 10, bottom: 10, left: 10},
             width = 800 - margin.left - margin.right,
@@ -96,6 +106,8 @@ title: Artist & Genre Recommendations
             radius = Math.min(width, height) / 2;
 
       const color = d3.scaleOrdinal(d3.schemeCategory10);
+      const tooltip = document.getElementById('tooltip'); // Get tooltip element
+      let applyMinSize = false; // Track whether minimum size is applied
 
       const svg = d3.select("#chart")
         .append("svg")
@@ -113,8 +125,8 @@ title: Artist & Genre Recommendations
         .innerRadius(d => d.y0)
         .outerRadius(d => d.y1);
 
-      const selectedGenres = new Set();   // Store selected genres
-      const selectedArtists = new Set();  // Store selected artists
+      const selectedGenres = new Set();
+      const selectedArtists = new Set();
 
       // Update selected items list and button visibility
       function updateSelectedItems() {
@@ -137,32 +149,49 @@ title: Artist & Genre Recommendations
 
         const recommendButton = document.getElementById('getRecommendations');
         if (selectedGenres.size > 0 || selectedArtists.size > 0) {
-          recommendButton.style.display = 'inline-block';  // Show the button when items are selected
+          recommendButton.style.display = 'inline-block';
         } else {
-          recommendButton.style.display = 'none';  // Hide the button when no items are selected
+          recommendButton.style.display = 'none';
         }
       }
 
-      // Remove genre
       function removeGenre(item) {
-        selectedGenres.delete(item);  // Remove item from the set
-        updateSelectedItems();  // Update the UI
+        selectedGenres.delete(item);
+        updateSelectedItems();
       }
 
-      // Remove artist
       function removeArtist(item) {
-        selectedArtists.delete(item);  // Remove item from the set
-        updateSelectedItems();  // Update the UI
+        selectedArtists.delete(item);
+        updateSelectedItems();
       }
 
-      // Expose remove functions to the global scope
       window.removeGenre = removeGenre;
       window.removeArtist = removeArtist;
+
+      // Function to show tooltip
+      function showTooltip(d) {
+        const playtimeInMinutes = (d.data.playtime / 60000).toFixed(2); // Convert ms to minutes
+        const artistName = d.data.name;
+
+        tooltip.innerHTML = `Artist: ${artistName}<br>Time: ${playtimeInMinutes} min`;
+        tooltip.style.visibility = 'visible';
+      }
+
+      // Function to move the tooltip with the mouse
+      function moveTooltip(event) {
+        tooltip.style.top = `${event.pageY + 10}px`;
+        tooltip.style.left = `${event.pageX + 10}px`; // Adjusting the tooltip position to follow cursor
+      }
+
+      // Function to hide the tooltip
+      function hideTooltip() {
+        tooltip.style.visibility = 'hidden';
+      }
 
       // Create the sunburst chart
       function createSunburst(data) {
         const root = d3.hierarchy(data)
-          .sum(d => d.playtime);
+          .sum(d => applyMinSize ? Math.max(Math.sqrt(d.playtime), 5) : d.playtime); // Apply min size condition
 
         partition(root);
 
@@ -172,21 +201,21 @@ title: Artist & Genre Recommendations
           .attr("d", arc)
           .attr("class", "clickable")
           .style("fill", d => color((d.children ? d : d.parent).data.name))
+          .on("mouseover", (event, d) => showTooltip(d))
+          .on("mousemove", (event) => moveTooltip(event))
+          .on("mouseout", hideTooltip)
           .on("click", (event, d) => {
             const name = d.data.name;
-
             if (d.depth === 1) {
-              // Genre selection has no limit
-              selectedGenres.add(name);  
+              selectedGenres.add(name);
             } else if (d.depth === 2) {
-              // Limit artist selection to 5
               if (selectedArtists.size >= 5 && !selectedArtists.has(name)) {
                 alert("You can only select up to 5 artists.");
                 return;
               }
               selectedArtists.add(name);
             }
-            updateSelectedItems();  // Update the UI to reflect the selection
+            updateSelectedItems();
           });
 
         svg.selectAll("text")
@@ -203,12 +232,10 @@ title: Artist & Genre Recommendations
           .style("fill", "white")
           .style("font-size", d => {
             const angle = d.x1 - d.x0;
-            return angle < 0.05 ? "0px" : "12px";  // Hide text for small segments
+            return angle < 0.05 ? "0px" : "12px";
           });
       }
 
-
-      // Load data and create the sunburst chart
       function loadDataAndCreateSunburst(maxGenres, maxArtistsPerGenre) {
         d3.json("http://localhost:8888/artists_by_genre").then(data => {
           const genres = data
@@ -226,14 +253,12 @@ title: Artist & Genre Recommendations
             }))
           };
 
-          svg.selectAll("*").remove();  // Clear previous chart
-          createSunburst(trimmedData);  // Create the updated chart
+          svg.selectAll("*").remove();
+          createSunburst(trimmedData);
         });
       }
 
-      // Fetch recommendations based on selected items
       async function fetchRecommendations() {
-        console.log('Get Recommendations button clicked');
         const genres = Array.from(selectedGenres);
         const artists = Array.from(selectedArtists);
 
@@ -264,7 +289,6 @@ title: Artist & Genre Recommendations
         }
       }
 
-      // Display the fetched recommendations in the DOM
       function displayRecommendations(tracks) {
         const recommendationsDiv = document.getElementById('recommendations');
         recommendationsDiv.innerHTML = '<h2>Recommended Songs</h2><ul>';
@@ -279,14 +303,21 @@ title: Artist & Genre Recommendations
       document.getElementById('updateChart').addEventListener('click', () => {
         const numGenres = document.getElementById('numGenres').value;
         const numArtists = document.getElementById('numArtists').value;
-        loadDataAndCreateSunburst(numGenres, numArtists);  // Update the chart based on user input
+        loadDataAndCreateSunburst(numGenres, numArtists);
       });
 
-      document.getElementById('getRecommendations').addEventListener('click', fetchRecommendations);  // Fetch recommendations when button is clicked
+      // Toggle minimum size button event listener
+      document.getElementById('toggleMinSize').addEventListener('click', () => {
+        applyMinSize = !applyMinSize; // Toggle the minimum size flag
+        const numGenres = document.getElementById('numGenres').value;
+        const numArtists = document.getElementById('numArtists').value;
+        loadDataAndCreateSunburst(numGenres, numArtists); // Re-create the chart with updated settings
+      });
 
-      // Initial load
-      loadDataAndCreateSunburst(15, 5);  // Initially load the chart with 15 genres and 5 artists per genre
-    }); // End of DOMContentLoaded event listener
+      document.getElementById('getRecommendations').addEventListener('click', fetchRecommendations);
+
+      loadDataAndCreateSunburst(15, 5);
+    });
   </script>
 </body>
 </html>
