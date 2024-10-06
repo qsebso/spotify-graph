@@ -169,6 +169,48 @@ function clearUnzippedFolder() {
   });
 }
 
+// Function to clear the entire uploads folder before processing
+function clearUploadsFolder() {
+  const uploadsDir = path.join(__dirname, 'uploads');
+
+  return new Promise((resolve, reject) => {
+    // Remove all contents of the uploads folder
+    fs.readdir(uploadsDir, (err, files) => {
+      if (err) {
+        console.error('Error reading uploads directory:', err);
+        reject(err);
+        return;
+      }
+
+      // Loop through each file/folder and remove them
+      Promise.all(
+        files.map((file) => {
+          const filePath = path.join(uploadsDir, file);
+          return new Promise((res, rej) => {
+            fs.rm(filePath, { recursive: true, force: true }, (err) => {
+              if (err) {
+                console.error('Error deleting file:', filePath, err);
+                rej(err);
+              } else {
+                console.log(`Deleted: ${filePath}`);
+                res();
+              }
+            });
+          });
+        })
+      )
+      .then(() => {
+        console.log('Uploads directory cleared.');
+        resolve();
+      })
+      .catch((err) => {
+        console.error('Error clearing uploads directory:', err);
+        reject(err);
+      });
+    });
+  });
+}
+
 // Function to unzip the file
 function unzipFile(zipFilePath, unzipPath) {
   return new Promise((resolve, reject) => {
@@ -611,6 +653,7 @@ app.post('/upload', upload.single('datafile'), async (req, res) => {
     console.error('Error during processing:', err);
     res.status(500).json({ error: 'Error processing the file.' });
   }
+  await clearUploadsFolder();
 });
 
 // Function to chunk an array into smaller arrays of a specified size
