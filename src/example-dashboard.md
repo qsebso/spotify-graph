@@ -1,99 +1,129 @@
----
-theme: dashboard
-title: Example dashboard
-toc: false
----
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Clickable D3 Chord Diagram</title>
+  <style>
+    /* Basic styling */
+    body {
+      font-family: Arial, sans-serif;
+    }
+    svg {
+      width: 800px;
+      height: 800px;
+      display: block;
+      margin: 0 auto;
+    }
+    .tooltip {
+      position: absolute;
+      text-align: center;
+      padding: 8px;
+      font-size: 12px;
+      background: lightsteelblue;
+      border: 0px;
+      border-radius: 8px;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>Clickable D3 Chord Diagram</h1>
+  <div id="chart"></div>
 
-# Rocket launches 🚀
+  <!-- D3.js library -->
+  <script src="https://d3js.org/d3.v6.min.js"></script>
 
-<!-- Load and transform the data -->
+  <script>
+    const margin = {top: 50, right: 50, bottom: 50, left: 50},
+          width = 800 - margin.left - margin.right,
+          height = 800 - margin.top - margin.bottom,
+          outerRadius = Math.min(width, height) / 2,
+          innerRadius = outerRadius - 20;
 
-```js
-const launches = FileAttachment("data/launches.csv").csv({typed: true});
-```
+    const color = d3.scaleOrdinal(d3.schemeCategory10);
 
-<!-- A shared color scale for consistency, sorted by the number of launches -->
+    const svg = d3.select("#chart")
+      .append("svg")
+      .attr("width", width + margin.left + margin.right)
+      .attr("height", height + margin.top + margin.bottom)
+      .append("g")
+      .attr("transform", `translate(${(width + margin.left) / 2}, ${(height + margin.top) / 2})`);
 
-```js
-const color = Plot.scale({
-  color: {
-    type: "categorical",
-    domain: d3.groupSort(launches, (D) => -D.length, (d) => d.state).filter((d) => d !== "Other"),
-    unknown: "var(--theme-foreground-muted)"
-  }
-});
-```
+    const chord = d3.chord()
+      .padAngle(0.05)
+      .sortSubgroups(d3.descending);
 
-<!-- Cards with big numbers -->
+    const arc = d3.arc()
+      .innerRadius(innerRadius)
+      .outerRadius(outerRadius);
 
-<div class="grid grid-cols-4">
-  <div class="card">
-    <h2>United States 🇺🇸</h2>
-    <span class="big">${launches.filter((d) => d.stateId === "US").length.toLocaleString("en-US")}</span>
-  </div>
-  <div class="card">
-    <h2>Russia 🇷🇺 <span class="muted">/ Soviet Union</span></h2>
-    <span class="big">${launches.filter((d) => d.stateId === "SU" || d.stateId === "RU").length.toLocaleString("en-US")}</span>
-  </div>
-  <div class="card">
-    <h2>China 🇨🇳</h2>
-    <span class="big">${launches.filter((d) => d.stateId === "CN").length.toLocaleString("en-US")}</span>
-  </div>
-  <div class="card">
-    <h2>Other</h2>
-    <span class="big">${launches.filter((d) => d.stateId !== "US" && d.stateId !== "SU" && d.stateId !== "RU" && d.stateId !== "CN").length.toLocaleString("en-US")}</span>
-  </div>
-</div>
+    const ribbon = d3.ribbon()
+      .radius(innerRadius);
 
-<!-- Plot of launch history -->
+    const tooltip = d3.select("body")
+      .append("div")
+      .attr("class", "tooltip")
+      .style("opacity", 0);
 
-```js
-function launchTimeline(data, {width} = {}) {
-  return Plot.plot({
-    title: "Launches over the years",
-    width,
-    height: 300,
-    y: {grid: true, label: "Launches"},
-    color: {...color, legend: true},
-    marks: [
-      Plot.rectY(data, Plot.binX({y: "count"}, {x: "date", fill: "state", interval: "year", tip: true})),
-      Plot.ruleY([0])
-    ]
-  });
-}
-```
+    // Fetch data from the server
+    d3.json("http://localhost:8888/artists_by_genre").then(data => {
 
-<div class="grid grid-cols-1">
-  <div class="card">
-    ${resize((width) => launchTimeline(launches, {width}))}
-  </div>
-</div>
+      const genreNames = data.map(d => d.genre);
+      const artistNames = Array.from(new Set(data.flatMap(d => d.artists.map(a => a.name))));
+      
+      const matrix = genreNames.map(genre => {
+        return artistNames.map(artist => {
+          const genreData = data.find(d => d.genre === genre);
+          const artistData = genreData.artists.find(a => a.name === artist);
+          return artistData ? artistData.playtime : 0;
+        });
+      });
 
-<!-- Plot of launch vehicles -->
+      const chords = chord(matrix);
 
-```js
-function vehicleChart(data, {width}) {
-  return Plot.plot({
-    title: "Popular launch vehicles",
-    width,
-    height: 300,
-    marginTop: 0,
-    marginLeft: 50,
-    x: {grid: true, label: "Launches"},
-    y: {label: null},
-    color: {...color, legend: true},
-    marks: [
-      Plot.rectX(data, Plot.groupY({x: "count"}, {y: "family", fill: "state", tip: true, sort: {y: "-x"}})),
-      Plot.ruleX([0])
-    ]
-  });
-}
-```
+      svg.append("g")
+        .selectAll("path")
+        .data(chords)
+        .enter()
+        .append("path")
+        .attr("d", ribbon)
+        .attr("fill", d => color(artistNames[d.source.index]))
+        .attr("stroke", d => d3.rgb(color(artistNames[d.source.index])).darker())
+        .on("mouseover", (event, d) => {
+          tooltip.transition().duration(200).style("opacity", .9);
+          tooltip.html(`Artist: ${artistNames[d.source.index]}<br>Genre: ${genreNames[d.target.index]}<br>Playtime: ${matrix[d.source.index][d.target.index]}ms`)
+            .style("left", (event.pageX + 5) + "px")
+            .style("top", (event.pageY - 28) + "px");
+        })
+        .on("mouseout", () => {
+          tooltip.transition().duration(500).style("opacity", 0);
+        });
 
-<div class="grid grid-cols-1">
-  <div class="card">
-    ${resize((width) => vehicleChart(launches, {width}))}
-  </div>
-</div>
+      const arcs = svg.append("g")
+        .selectAll("g")
+        .data(chords.groups)
+        .enter()
+        .append("g");
 
-Data: Jonathan C. McDowell, [General Catalog of Artificial Space Objects](https://planet4589.org/space/gcat)
+      arcs.append("path")
+        .style("fill", d => color(artistNames[d.index]))
+        .style("stroke", d => d3.rgb(color(artistNames[d.index])).darker())
+        .attr("d", arc);
+
+      arcs.append("text")
+        .each(d => { d.angle = (d.startAngle + d.endAngle) / 2; })
+        .attr("dy", ".35em")
+        .attr("transform", d => `
+          rotate(${(d.angle * 180 / Math.PI - 90)})
+          translate(${outerRadius + 10})
+          ${d.angle > Math.PI ? "rotate(180)" : ""}
+        `)
+        .attr("text-anchor", d => d.angle > Math.PI ? "end" : null)
+        .text(d => artistNames[d.index]);
+
+    }).catch(error => {
+      console.error("Error loading data:", error);
+    });
+  </script>
+</body>
+</html>
