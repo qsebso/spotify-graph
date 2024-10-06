@@ -18,6 +18,7 @@ dotenv.config(); // Load environment variables
 
 const app = express();
 app.use(cors()); // Enable CORS
+app.use(express.json());  // This allows the server to parse incoming JSON requests
 
 // Define __dirname in ES module scope
 import { fileURLToPath } from 'url';
@@ -41,6 +42,105 @@ app.use('/uploads', express.static('uploads'));
 // Root route to handle "/"
 app.get('/', (req, res) => {
   res.send('Welcome to the Spotify API!');
+});
+
+// Function to get Spotify token
+async function getSpotifyToken() {
+  const clientId = process.env.CLIENT_ID;
+  const clientSecret = process.env.CLIENT_SECRET;
+  const authString = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
+  try {
+    const tokenResponse = await axios.post(
+      'https://accounts.spotify.com/api/token',
+      'grant_type=client_credentials',
+      {
+        headers: {
+          Authorization: `Basic ${authString}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      }
+    );
+    return tokenResponse.data.access_token;
+  } catch (error) {
+    console.error('Error fetching Spotify token:', error.response ? error.response.data : error.message);
+    throw new Error('Error retrieving Spotify token');
+  }
+}
+
+app.post('/get_recommendations', async (req, res) => {
+  const { genres, artists } = req.body;
+
+  if (!genres && !artists) {
+    return res.status(400).json({ error: 'Genres or artists are missing in the request' });
+  }
+
+  try {
+    // Fetch Spotify access token
+    const spotifyToken = await getSpotifyToken();
+
+    // Fetch valid genres from Spotify
+    const validGenresResponse = await axios.get('https://api.spotify.com/v1/recommendations/available-genre-seeds', {
+      headers: {
+        Authorization: `Bearer ${spotifyToken}`,
+      },
+    });
+    const validGenres = validGenresResponse.data.genres;
+
+    // Filter genres to only include valid seed genres
+    const seedGenres = genres.filter(genre => validGenres.includes(genre.toLowerCase()));
+
+    // Map artist names to Spotify IDs
+    const seedArtists = [];
+    for (const artistName of artists) {
+      const searchResponse = await axios.get('https://api.spotify.com/v1/search', {
+        headers: {
+          Authorization: `Bearer ${spotifyToken}`,
+        },
+        params: {
+          q: artistName,
+          type: 'artist',
+          limit: 1,
+        },
+      });
+
+      const artistItems = searchResponse.data.artists.items;
+      if (artistItems.length > 0) {
+        seedArtists.push(artistItems[0].id);
+      }
+    }
+
+    // Limit the number of seed parameters to 5
+    const totalSeeds = seedGenres.length + seedArtists.length;
+    if (totalSeeds > 5) {
+      // Adjust seeds to not exceed 5
+      seedGenres.splice(5 - seedArtists.length);
+    }
+
+    // Call Spotify recommendations API
+    const recommendationsResponse = await axios.get('https://api.spotify.com/v1/recommendations', {
+      headers: {
+        Authorization: `Bearer ${spotifyToken}`,
+      },
+      params: {
+        seed_genres: seedGenres.join(','),
+        seed_artists: seedArtists.join(','),
+        limit: 10,
+      },
+    });
+
+    // Extract relevant data
+    const tracks = recommendationsResponse.data.tracks.map(track => ({
+      artist: track.artists.map(artist => artist.name).join(', '),
+      track: track.name,
+      preview_url: track.preview_url,
+    }));
+
+    res.json(tracks);
+  } catch (error) {
+    console.error('Error fetching recommendations:', error.response ? error.response.data : error.message);
+    res.status(500).json({ error: 'Error fetching recommendations' });
+  }
 });
 
 // Function to clear the unzipped folder before unzipping a new file
