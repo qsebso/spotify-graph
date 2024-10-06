@@ -713,6 +713,34 @@ app.get('/sample_cumulative_for_barchart', (req, res) => {
 });
 
 // Route to the artist by genre
+app.get('/non_cumulative_songs', (req, res) => {
+  const filePath = path.join(__dirname, 'non_cumulative_songs.json');
+
+  fs.access(filePath, fs.constants.F_OK, (err) => {
+    if (err) {
+      console.error('File not found:', filePath); // Log error
+      return res.status(404).send('File not found');
+    }
+
+    res.sendFile(filePath);
+  });
+});
+
+// Route to the artist by genre
+app.get('/sample_non_cumulative_songs', (req, res) => {
+  const filePath = path.join(__dirname, 'sample_non_cumulative_songs.json');
+
+  fs.access(filePath, fs.constants.F_OK, (err) => {
+    if (err) {
+      console.error('File not found:', filePath); // Log error
+      return res.status(404).send('File not found');
+    }
+
+    res.sendFile(filePath);
+  });
+});
+
+// Route to the artist by genre
 app.get('/artists_by_genre', (req, res) => {
   const filePath = path.join(__dirname, 'artists_by_genre.json');
 
