@@ -754,6 +754,20 @@ app.get('/artists_by_genre', (req, res) => {
   });
 });
 
+// Route to the sample artist by genre
+app.get('/sample_artists_by_genre', (req, res) => {
+  const filePath = path.join(__dirname, 'sample_artists_by_genre.json');
+
+  fs.access(filePath, fs.constants.F_OK, (err) => {
+    if (err) {
+      console.error('File not found:', filePath); // Log error
+      return res.status(404).send('File not found');
+    }
+
+    res.sendFile(filePath);
+  });
+});
+
 // Route to access uploaded files
 app.get('/uploads/:filename', (req, res) => {
   const filepath = path.join(__dirname, 'uploads', req.params.filename);
