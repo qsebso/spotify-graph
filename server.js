@@ -12,7 +12,7 @@ import pLimit from 'p-limit';
 
 // Define constants for easy adjustments
 const TOP_N = 10; // Modify this number to adjust how many top songs to select
-const SNAPSHOT_DAYS = 3; // Modify this to control how many days are considered per non-cumulative snapshot
+const SNAPSHOT_DAYS = 7; // Modify this to control how many days are considered per non-cumulative snapshot
 
 dotenv.config(); // Load environment variables
 
@@ -314,7 +314,7 @@ app.post('/upload', upload.single('datafile'), async (req, res) => {
         jsonData.forEach((entry) => {
           const trackName = entry.trackName;
           const endTime = new Date(entry.endTime);
-          const intervalStart = getIntervalStart(endTime, SNAPSHOT_DAYS)
+          const intervalStart = getIntervalStart(endTime, 3)
             .toISOString()
             .split('T')[0]; // Format as YYYY-MM-DD
 
