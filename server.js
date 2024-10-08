@@ -1114,6 +1114,20 @@ app.get('/spotify_wrapped', (req, res) => {
   });
 });
 
+// Route to access spotify_wrapped.json
+app.get('/sample_spotify_wrapped', (req, res) => {
+  const filePath = path.join(__dirname, 'spotify_wrapped.json');
+
+  fs.access(filePath, fs.constants.F_OK, (err) => {
+    if (err) {
+      console.error('File not found:', filePath); // Log error
+      return res.status(404).send('File not found');
+    }
+
+    res.sendFile(filePath);
+  });
+});
+
 // Route to list uploaded files
 app.get('/files', (req, res) => {
   fs.readdir('uploads/unzipped', (err, files) => {
