@@ -8,7 +8,8 @@ export default {
   // lets you organize them into sections and have unlisted pages.
    // The pages and sections in the sidebar.
    pages: [
-    { name: "Weekly Top 10!", path: "/weekly-hits" },
+    { name: "Listening History Over Time", path: "/bar-chart-race" },
+    { name: "Weekly Top 10", path: "/weekly-hits" },
     { name: "Artist & Genre Recommendations", path: "/sunburst-diagram" },
     { name: "Spotify Wrapped", path: "/spotify-wrapped" },
     { name: "How do I get my Data?", path: "/help-page" }
