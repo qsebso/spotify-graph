@@ -100,251 +100,252 @@
 
   <script>
   document.addEventListener('DOMContentLoaded', function() {
-  const margin = { top: 10, right: 10, bottom: 10, left: 10 },
-        width = 800 - margin.left - margin.right,
-        height = 800 - margin.top - margin.bottom,
-        radius = Math.min(width, height) / 2;
+    const margin = { top: 10, right: 10, bottom: 10, left: 10 },
+          width = 800 - margin.left - margin.right,
+          height = 800 - margin.top - margin.bottom,
+          radius = Math.min(width, height) / 2;
 
-  const color = d3.scaleOrdinal(d3.schemeCategory10);
-  const tooltip = document.getElementById('tooltip'); // Get tooltip element
-  let applyMinSize = false; // Track whether minimum size is applied
+    const color = d3.scaleOrdinal(d3.schemeCategory10);
+    const tooltip = document.getElementById('tooltip'); // Get tooltip element
+    let applyMinSize = false; // Track whether minimum size is applied
 
-  const svg = d3.select("#chart")
-    .append("svg")
-    .attr("width", width + margin.left + margin.right)
-    .attr("height", height + margin.top + margin.bottom)
-    .append("g")
-    .attr("transform", `translate(${(width / 2)}, ${(height / 2)})`);
+    const svg = d3.select("#chart")
+      .append("svg")
+      .attr("width", width + margin.left + margin.right)
+      .attr("height", height + margin.top + margin.bottom)
+      .append("g")
+      .attr("transform", `translate(${(width / 2)}, ${(height / 2)})`);
 
-  const partition = d3.partition()
-    .size([2 * Math.PI, radius]);
+    const partition = d3.partition()
+      .size([2 * Math.PI, radius]);
 
-  const arc = d3.arc()
-    .startAngle(d => d.x0)
-    .endAngle(d => d.x1)
-    .innerRadius(d => d.y0)
-    .outerRadius(d => d.y1);
+    const arc = d3.arc()
+      .startAngle(d => d.x0)
+      .endAngle(d => d.x1)
+      .innerRadius(d => d.y0)
+      .outerRadius(d => d.y1);
 
-  const selectedGenres = new Set();
-  const selectedArtists = new Set();
+    const selectedGenres = new Set();
+    const selectedArtists = new Set();
 
-  // Update selected items list and button visibility
-  function updateSelectedItems() {
-    const selectedItemsDiv = document.getElementById('selectedItems');
-    selectedItemsDiv.innerHTML = '';
+    // Update selected items list and button visibility
+    function updateSelectedItems() {
+      const selectedItemsDiv = document.getElementById('selectedItems');
+      selectedItemsDiv.innerHTML = '';
 
-    selectedGenres.forEach(item => {
-      const li = document.createElement('li');
-      li.className = 'selected-item';
-      li.innerHTML = `Genre: ${item} <button onclick="removeGenre('${item}')">Remove</button>`;
-      selectedItemsDiv.appendChild(li);
-    });
-
-    selectedArtists.forEach(item => {
-      const li = document.createElement('li');
-      li.className = 'selected-item';
-      li.innerHTML = `Artist: ${item} <button onclick="removeArtist('${item}')">Remove</button>`;
-      selectedItemsDiv.appendChild(li);
-    });
-
-    const recommendButton = document.getElementById('getRecommendations');
-    if (selectedGenres.size > 0 || selectedArtists.size > 0) {
-      recommendButton.style.display = 'inline-block';
-    } else {
-      recommendButton.style.display = 'none';
-    }
-  }
-
-  function removeGenre(item) {
-    selectedGenres.delete(item);
-    updateSelectedItems();
-  }
-
-  function removeArtist(item) {
-    selectedArtists.delete(item);
-    updateSelectedItems();
-  }
-
-  window.removeGenre = removeGenre;
-  window.removeArtist = removeArtist;
-
-  // Function to show tooltip
-  function showTooltip(d) {
-    const playtimeInMinutes = (d.data.playtime / 60000).toFixed(2); // Convert ms to minutes
-    const artistName = d.data.name;
-
-    tooltip.innerHTML = `Artist: ${artistName}<br>Time: ${playtimeInMinutes} min`;
-    tooltip.style.visibility = 'visible';
-  }
-
-  // Function to move the tooltip with the mouse
-  function moveTooltip(event) {
-    tooltip.style.top = `${event.pageY + 10}px`;
-    tooltip.style.left = `${event.pageX + 10}px`; // Adjusting the tooltip position to follow cursor
-  }
-
-  // Function to hide the tooltip
-  function hideTooltip() {
-    tooltip.style.visibility = 'hidden';
-  }
-
-  // Create the sunburst chart
-  function createSunburst(data) {
-    const root = d3.hierarchy(data)
-      .sum(d => applyMinSize ? Math.max(Math.sqrt(d.playtime), 5) : d.playtime); // Apply min size condition
-
-    partition(root);
-
-    const path = svg.selectAll("path")
-      .data(root.descendants())
-      .enter().append("path")
-      .attr("d", arc)
-      .attr("class", "clickable")
-      .style("fill", d => color((d.children ? d : d.parent).data.name))
-      .on("mouseover", (event, d) => showTooltip(d))
-      .on("mousemove", (event) => moveTooltip(event))
-      .on("mouseout", hideTooltip)
-      .on("click", (event, d) => {
-        const name = d.data.name;
-        if (d.depth === 1) {
-          selectedGenres.add(name);
-        } else if (d.depth === 2) {
-          if (selectedArtists.size >= 5 && !selectedArtists.has(name)) {
-            alert("You can only select up to 5 artists.");
-            return;
-          }
-          selectedArtists.add(name);
-        }
-        updateSelectedItems();
+      selectedGenres.forEach(item => {
+        const li = document.createElement('li');
+        li.className = 'selected-item';
+        li.innerHTML = `Genre: ${item} <button onclick="removeGenre('${item}')">Remove</button>`;
+        selectedItemsDiv.appendChild(li);
       });
 
-    svg.selectAll("text")
-      .data(root.descendants())
-      .enter().append("text")
-      .attr("transform", function(d) {
-        const x = (d.x0 + d.x1) / 2 * 180 / Math.PI;
-        const y = (d.y0 + d.y1) / 2;
-        return `rotate(${x - 90}) translate(${y},0) rotate(${x < 180 ? 0 : 180})`;
-      })
-      .attr("dx", "-20")
-      .attr("dy", ".35em")
-      .text(d => d.data.name)
-      .style("fill", "white")
-      .style("font-size", d => {
-        const angle = d.x1 - d.x0;
-        return angle < 0.05 ? "0px" : "12px";
-      });
-  }
-
-  // Function to load either user data or sample data based on selection
-  function loadDataAndCreateSunburst(maxGenres, maxArtistsPerGenre) {
-    // First try to fetch the user data
-    fetch("http://localhost:8888/artists_by_genre")
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Artists by genre data not found, falling back to sample data.');
-        }
-        return response.json(); // Parse the user data if available
-      })
-      .then(data => {
-        // Process the data and create the sunburst chart
-        processAndCreateSunburst(data, maxGenres, maxArtistsPerGenre);
-      })
-      .catch(() => {
-        // If fetching the user data fails, fetch the sample data
-        console.warn("User data not available, loading sample data.");
-        fetch("http://localhost:8888/sample_artists_by_genre")
-          .then(response => response.json())
-          .then(sampleData => {
-            // Process the sample data and create the sunburst chart
-            processAndCreateSunburst(sampleData, maxGenres, maxArtistsPerGenre);
-          })
-          .catch(error => {
-            console.error("Error loading sample data:", error);
-          });
-      });
-  }
-
-  function processAndCreateSunburst(data, maxGenres, maxArtistsPerGenre) {
-    const genres = data
-      .sort((a, b) => d3.sum(b.artists, d => d.playtime) - d3.sum(a.artists, d => d.playtime))
-      .slice(0, maxGenres);
-
-    const trimmedData = {
-      name: "Genres",
-      children: genres.map(genre => ({
-        name: genre.genre,
-        children: genre.artists
-          .sort((a, b) => b.playtime - a.playtime)
-          .slice(0, maxArtistsPerGenre)
-          .map(artist => ({ name: artist.name, playtime: artist.playtime }))
-      }))
-    };
-
-    svg.selectAll("*").remove();
-    createSunburst(trimmedData);
-  }
-
-  async function fetchRecommendations() {
-    const genres = Array.from(selectedGenres);
-    const artists = Array.from(selectedArtists);
-
-    try {
-      const response = await fetch('http://localhost:8888/get_recommendations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          genres,
-          artists
-        })
+      selectedArtists.forEach(item => {
+        const li = document.createElement('li');
+        li.className = 'selected-item';
+        li.innerHTML = `Artist: ${item} <button onclick="removeArtist('${item}')">Remove</button>`;
+        selectedItemsDiv.appendChild(li);
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Server Error:', errorData.error);
-        alert('Error fetching recommendations: ' + errorData.error);
-        return;
+      const recommendButton = document.getElementById('getRecommendations');
+      if (selectedGenres.size > 0 || selectedArtists.size > 0) {
+        recommendButton.style.display = 'inline-block';
+      } else {
+        recommendButton.style.display = 'none';
       }
-
-      const recommendations = await response.json();
-      displayRecommendations(recommendations);
-    } catch (error) {
-      console.error('Error fetching recommendations:', error);
-      alert('An unexpected error occurred.');
     }
-  }
 
-  function displayRecommendations(tracks) {
-    const recommendationsDiv = document.getElementById('recommendations');
-    recommendationsDiv.innerHTML = '<h2>Recommended Songs</h2><ul>';
+    function removeGenre(item) {
+      selectedGenres.delete(item);
+      updateSelectedItems();
+    }
 
-    tracks.forEach(track => {
-      recommendationsDiv.innerHTML += `<li>${track.track} by ${track.artist}</li>`;
+    function removeArtist(item) {
+      selectedArtists.delete(item);
+      updateSelectedItems();
+    }
+
+    window.removeGenre = removeGenre;
+    window.removeArtist = removeArtist;
+
+    // Function to show tooltip
+    function showTooltip(d) {
+      const playtimeInMinutes = (d.data.playtime / 60000).toFixed(2); // Convert ms to minutes
+      const artistName = d.data.name;
+
+      tooltip.innerHTML = `Artist: ${artistName}<br>Time: ${playtimeInMinutes} min`;
+      tooltip.style.visibility = 'visible';
+    }
+
+    // Function to move the tooltip with the mouse
+    function moveTooltip(event) {
+      const svgBounds = document.getElementById('chart').getBoundingClientRect(); 
+      tooltip.style.top = `${event.clientY - svgBounds.top + 10}px`;
+      tooltip.style.left = `${event.clientX - svgBounds.left + 10}px`; 
+    }
+
+    // Function to hide the tooltip
+    function hideTooltip() {
+      tooltip.style.visibility = 'hidden';
+    }
+
+    // Create the sunburst chart
+    function createSunburst(data) {
+      const root = d3.hierarchy(data)
+        .sum(d => applyMinSize ? Math.max(Math.sqrt(d.playtime), 5) : d.playtime); // Apply min size condition
+
+      partition(root);
+
+      const path = svg.selectAll("path")
+        .data(root.descendants())
+        .enter().append("path")
+        .attr("d", arc)
+        .attr("class", "clickable")
+        .style("fill", d => color((d.children ? d : d.parent).data.name))
+        .on("mouseover", (event, d) => showTooltip(d))
+        .on("mousemove", (event) => moveTooltip(event))
+        .on("mouseout", hideTooltip)
+        .on("click", (event, d) => {
+          const name = d.data.name;
+          if (d.depth === 1) {
+            selectedGenres.add(name);
+          } else if (d.depth === 2) {
+            if (selectedArtists.size >= 5 && !selectedArtists.has(name)) {
+              alert("You can only select up to 5 artists.");
+              return;
+            }
+            selectedArtists.add(name);
+          }
+          updateSelectedItems();
+        });
+
+      svg.selectAll("text")
+        .data(root.descendants())
+        .enter().append("text")
+        .attr("transform", function(d) {
+          const x = (d.x0 + d.x1) / 2 * 180 / Math.PI;
+          const y = (d.y0 + d.y1) / 2;
+          return `rotate(${x - 90}) translate(${y},0) rotate(${x < 180 ? 0 : 180})`;
+        })
+        .attr("dx", "-20")
+        .attr("dy", ".35em")
+        .text(d => d.data.name)
+        .style("fill", "white")
+        .style("font-size", d => {
+          const angle = d.x1 - d.x0;
+          return angle < 0.05 ? "0px" : "12px";
+        });
+    }
+
+    // Function to load either user data or sample data based on selection
+    function loadDataAndCreateSunburst(maxGenres, maxArtistsPerGenre) {
+      // First try to fetch the user data
+      fetch("http://localhost:8888/artists_by_genre")
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Artists by genre data not found, falling back to sample data.');
+          }
+          return response.json(); // Parse the user data if available
+        })
+        .then(data => {
+          // Process the data and create the sunburst chart
+          processAndCreateSunburst(data, maxGenres, maxArtistsPerGenre);
+        })
+        .catch(() => {
+          // If fetching the user data fails, fetch the sample data
+          console.warn("User data not available, loading sample data.");
+          fetch("http://localhost:8888/sample_artists_by_genre")
+            .then(response => response.json())
+            .then(sampleData => {
+              // Process the sample data and create the sunburst chart
+              processAndCreateSunburst(sampleData, maxGenres, maxArtistsPerGenre);
+            })
+            .catch(error => {
+              console.error("Error loading sample data:", error);
+            });
+        });
+    }
+
+    function processAndCreateSunburst(data, maxGenres, maxArtistsPerGenre) {
+      const genres = data
+        .sort((a, b) => d3.sum(b.artists, d => d.playtime) - d3.sum(a.artists, d => d.playtime))
+        .slice(0, maxGenres);
+
+      const trimmedData = {
+        name: "Genres",
+        children: genres.map(genre => ({
+          name: genre.genre,
+          children: genre.artists
+            .sort((a, b) => b.playtime - a.playtime)
+            .slice(0, maxArtistsPerGenre)
+            .map(artist => ({ name: artist.name, playtime: artist.playtime }))
+        }))
+      };
+
+      svg.selectAll("*").remove();
+      createSunburst(trimmedData);
+    }
+
+    async function fetchRecommendations() {
+      const genres = Array.from(selectedGenres);
+      const artists = Array.from(selectedArtists);
+
+      try {
+        const response = await fetch('http://localhost:8888/get_recommendations', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            genres,
+            artists
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Server Error:', errorData.error);
+          alert('Error fetching recommendations: ' + errorData.error);
+          return;
+        }
+
+        const recommendations = await response.json();
+        displayRecommendations(recommendations);
+      } catch (error) {
+        console.error('Error fetching recommendations:', error);
+        alert('An unexpected error occurred.');
+      }
+    }
+
+    function displayRecommendations(tracks) {
+      const recommendationsDiv = document.getElementById('recommendations');
+      recommendationsDiv.innerHTML = '<h2>Recommended Songs</h2><ul>';
+
+      tracks.forEach(track => {
+        recommendationsDiv.innerHTML += `<li>${track.track} by ${track.artist}</li>`;
+      });
+
+      recommendationsDiv.innerHTML += '</ul>';
+    }
+
+    document.getElementById('updateChart').addEventListener('click', () => {
+      const numGenres = document.getElementById('numGenres').value;
+      const numArtists = document.getElementById('numArtists').value;
+      loadDataAndCreateSunburst(numGenres, numArtists);
     });
 
-    recommendationsDiv.innerHTML += '</ul>';
-  }
+    // Toggle minimum size button event listener
+    document.getElementById('toggleMinSize').addEventListener('click', () => {
+      applyMinSize = !applyMinSize; // Toggle the minimum size flag
+      const numGenres = document.getElementById('numGenres').value;
+      const numArtists = document.getElementById('numArtists').value;
+      loadDataAndCreateSunburst(numGenres, numArtists); // Re-create the chart with updated settings
+    });
 
-  document.getElementById('updateChart').addEventListener('click', () => {
-    const numGenres = document.getElementById('numGenres').value;
-    const numArtists = document.getElementById('numArtists').value;
-    loadDataAndCreateSunburst(numGenres, numArtists);
-  });
+    document.getElementById('getRecommendations').addEventListener('click', fetchRecommendations);
 
-  // Toggle minimum size button event listener
-  document.getElementById('toggleMinSize').addEventListener('click', () => {
-    applyMinSize = !applyMinSize; // Toggle the minimum size flag
-    const numGenres = document.getElementById('numGenres').value;
-    const numArtists = document.getElementById('numArtists').value;
-    loadDataAndCreateSunburst(numGenres, numArtists); // Re-create the chart with updated settings
-  });
-
-  document.getElementById('getRecommendations').addEventListener('click', fetchRecommendations);
-
-  // Load initial data with default values for genres and artists
-  loadDataAndCreateSunburst(15, 5);
+    // Load initial data with default values for genres and artists
+    loadDataAndCreateSunburst(15, 5);
   });
   </script>
 </body>
