@@ -180,6 +180,30 @@
     handleFiles(files);
   }
 
+  // Check if cumulative_for_barchart exists on page load
+  window.addEventListener('DOMContentLoaded', () => {
+    checkForExistingData();
+  });
+
+  // Check for existing cumulative_for_barchart data
+  function checkForExistingData() {
+    fetch('http://localhost:8888/cumulative_for_barchart')
+      .then(response => {
+        if (response.ok) {
+          return response.json(); // If the file exists, return it
+        } else {
+          throw new Error('Data not found'); // If it doesn't exist, throw an error
+        }
+      })
+      .then(data => {
+        rawData = data;
+        initializeChart(); // If data exists, initialize the chart immediately
+      })
+      .catch(() => {
+        statusMessage.textContent = 'No existing data found. Please upload your data or use sample data.';
+      });
+  }
+
   // Event listener for Use Sample Data button
   document.getElementById('use-sample-button').addEventListener('click', () => {
     statusMessage.textContent = 'Loading sample data, please wait...';
