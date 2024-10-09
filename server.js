@@ -1189,7 +1189,7 @@ app.get('/spotify_wrapped', (req, res) => {
 
 // Route to access spotify_wrapped.json
 app.get('/sample_spotify_wrapped', (req, res) => {
-  const filePath = path.join(__dirname, 'spotify_wrapped.json');
+  const filePath = path.join(__dirname, 'sample_spotify_wrapped.json');
 
   fs.access(filePath, fs.constants.F_OK, (err) => {
     if (err) {
