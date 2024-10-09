@@ -1,5 +1,3 @@
-// generate_artist_genre_mapping.js
-
 import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
@@ -37,7 +35,7 @@ async function generateArtistGenreMapping() {
     }
 
     // Load the list of artist names from your data
-    const dataDir = path.join(__dirname, 'uploads/unzipped');
+    const dataDir = path.join(__dirname, 'uploads');
     const artistSet = new Set();
 
     // Recursively read all StreamingHistory files
@@ -68,12 +66,16 @@ async function generateArtistGenreMapping() {
       const jsonData = JSON.parse(fileContents);
 
       jsonData.forEach((entry) => {
-        const artistName = entry.artistName || 'Unknown Artist';
+        let artistName = entry.artistName || 'Unknown Artist';
+        artistName = artistName.toLowerCase().trim(); // Normalize artist name (lowercase and trim)
         artistSet.add(artistName);
       });
     });
 
     const artistNames = Array.from(artistSet);
+
+    // Debugging step: print all unique artist names collected
+    console.log('Unique artist names found:', artistNames);
 
     console.log(`Total unique artists found in data: ${artistNames.length}`);
 
