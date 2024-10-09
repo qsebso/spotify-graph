@@ -13,6 +13,7 @@ import pLimit from 'p-limit';
 // Define constants for easy adjustments
 const TOP_N = 10; // Modify this number to adjust how many top songs to select
 const SNAPSHOT_DAYS = 7; // Modify this to control how many days are considered per non-cumulative snapshot
+let genresList = []; // Declared once here
 
 dotenv.config(); // Load environment variables
 
@@ -367,6 +368,229 @@ app.post('/upload', upload.single('datafile'), async (req, res) => {
     );
     console.log('Non-cumulative data saved to non_cumulative_songs.json');
 
+     // --- New Block: Genre Mapping with API Calls for Missing Artists ---
+
+    // Step 1: Calculate total playtime per artist
+    const artistPlaytime = {};
+    const normalizedToOriginalArtistNames = {};
+
+    streamingHistoryFiles.forEach((filePath) => {
+      try {
+        const fileContents = fs.readFileSync(filePath, 'utf8');
+        const jsonData = JSON.parse(fileContents);
+
+        jsonData.forEach((entry) => {
+          const originalArtistName = entry.artistName || 'Unknown Artist';
+          const artistName = originalArtistName.toLowerCase().trim(); // Normalize artist name
+
+          // Map normalized name to original name (the first occurrence)
+          if (!normalizedToOriginalArtistNames[artistName]) {
+            normalizedToOriginalArtistNames[artistName] = originalArtistName;
+          }
+
+          if (!artistPlaytime[artistName]) {
+            artistPlaytime[artistName] = 0;
+          }
+          artistPlaytime[artistName] += entry.msPlayed;
+        });
+      } catch (err) {
+        console.error(`Error processing ${filePath}:`, err);
+      }
+    });
+
+    // Step 2: Load the pre-generated artist-genre mapping
+    let artistGenreMapping = {};
+    try {
+      const mappingPath = path.join(__dirname, 'artist_genre_mapping.json');
+      const mappingContents = fs.readFileSync(mappingPath, 'utf8');
+      artistGenreMapping = JSON.parse(mappingContents);
+    } catch (error) {
+      console.error('Error loading artist_genre_mapping.json:', error);
+      // Initialize an empty mapping if the file doesn't exist
+      artistGenreMapping = {};
+    }
+
+    // Step 3: Identify artists not in the mapping
+    const artistsToFetch = [];
+    for (const artistNameKey of Object.keys(artistPlaytime)) {
+      const originalArtistName = normalizedToOriginalArtistNames[artistNameKey];
+      if (!artistGenreMapping[originalArtistName]) {
+        artistsToFetch.push({
+          normalizedName: artistNameKey,
+          originalName: originalArtistName,
+        });
+      }
+    }
+
+    if (artistsToFetch.length > 0) {
+      console.log(`Fetching genres for ${artistsToFetch.length} new artists...`);
+
+      // Step 4: Get Spotify access token
+      const clientId = process.env.CLIENT_ID;
+      const clientSecret = process.env.CLIENT_SECRET;
+      const authString = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
+      let spotifyToken = null;
+
+      try {
+        const tokenResponse = await axios.post(
+          'https://accounts.spotify.com/api/token',
+          'grant_type=client_credentials',
+          {
+            headers: {
+              Authorization: `Basic ${authString}`,
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+          }
+        );
+        spotifyToken = tokenResponse.data.access_token;
+      } catch (error) {
+        console.error(
+          'Error fetching Spotify token:',
+          error.response ? error.response.data : error.message
+        );
+        return res.status(500).json({ error: 'Error retrieving Spotify token' });
+      }
+
+      // Step 5: Fetch genres for missing artists
+      const limit = pLimit(10); // Control concurrency
+
+      // Map to store artist IDs and genres
+      const artistIdMap = {};
+      const artistGenreMap = {};
+
+      // Function to fetch artist ID
+      async function fetchArtistId(artist) {
+        const { normalizedName, originalName } = artist;
+        try {
+          const searchResponse = await axios.get(
+            'https://api.spotify.com/v1/search',
+            {
+              headers: {
+                Authorization: `Bearer ${spotifyToken}`,
+              },
+              params: {
+                q: originalName,
+                type: 'artist',
+                limit: 1,
+              },
+            }
+          );
+
+          const artists = searchResponse.data.artists.items;
+          if (artists.length > 0) {
+            const artistData = artists[0];
+            artistIdMap[normalizedName] = artistData.id;
+          } else {
+            console.warn(`No Spotify artist found for ${originalName}`);
+            artistIdMap[normalizedName] = null;
+          }
+        } catch (error) {
+          console.error(
+            `Error fetching artist ID for ${originalName}:`,
+            error.response ? error.response.data : error.message
+          );
+          artistIdMap[normalizedName] = null;
+        }
+      }
+
+      // Fetch artist IDs with controlled concurrency
+      await Promise.all(
+        artistsToFetch.map((artist) => limit(() => fetchArtistId(artist)))
+      );
+
+      // Fetch genres in batches of 50
+      const artistIds = Object.values(artistIdMap).filter((id) => id !== null);
+      const idChunks = chunkArray(artistIds, 50);
+
+      for (const chunk of idChunks) {
+        try {
+          const response = await axios.get('https://api.spotify.com/v1/artists', {
+            headers: {
+              Authorization: `Bearer ${spotifyToken}`,
+            },
+            params: {
+              ids: chunk.join(','),
+            },
+          });
+
+          response.data.artists.forEach((artistData) => {
+            const normalizedName = Object.keys(artistIdMap).find(
+              (key) => artistIdMap[key] === artistData.id
+            );
+            artistGenreMap[normalizedName] =
+              artistData.genres.length > 0 ? artistData.genres : ['Unknown Genre'];
+          });
+        } catch (error) {
+          console.error(
+            'Error fetching genres for artist chunk:',
+            error.response ? error.response.data : error.message
+          );
+          // Assign 'Unknown Genre' to all artists in this chunk
+          chunk.forEach((id) => {
+            const normalizedName = Object.keys(artistIdMap).find(
+              (key) => artistIdMap[key] === id
+            );
+            artistGenreMap[normalizedName] = ['Unknown Genre'];
+          });
+        }
+      }
+
+      // Assign 'Unknown Genre' to artists without a Spotify ID
+      Object.entries(artistIdMap).forEach(([normalizedName, id]) => {
+        if (id === null) {
+          artistGenreMap[normalizedName] = ['Unknown Genre'];
+        }
+      });
+
+      // Step 6: Update the artistGenreMapping with fetched genres
+      artistsToFetch.forEach(({ normalizedName, originalName }) => {
+        artistGenreMapping[originalName] = artistGenreMap[normalizedName] || [
+          'Unknown Genre',
+        ];
+      });
+
+      // Step 7: Save the updated mapping back to the file
+      fs.writeFileSync(
+        path.join(__dirname, 'artist_genre_mapping.json'),
+        JSON.stringify(artistGenreMapping, null, 2)
+      );
+      console.log('Updated artist_genre_mapping.json with new artists.');
+    }
+
+    // Step 8: Build the genre-artists-playtime mapping
+    const genreArtistsMap = {};
+
+    for (const [artistNameKey, playtimeMs] of Object.entries(artistPlaytime)) {
+      const originalArtistName = normalizedToOriginalArtistNames[artistNameKey];
+      const genres = artistGenreMapping[originalArtistName] || ['Unknown Genre'];
+
+      genres.forEach((genre) => {
+        if (!genreArtistsMap[genre]) {
+          genreArtistsMap[genre] = [];
+        }
+        genreArtistsMap[genre].push({
+          name: originalArtistName,
+          playtime: playtimeMs,
+        });
+      });
+    }
+
+    // Step 9: Convert the genreArtistsMap to the desired JSON structure
+    let genresList = Object.keys(genreArtistsMap).map((genre) => ({
+      genre: genre,
+      artists: genreArtistsMap[genre],
+    }));
+
+    // Step 10: Save the result to a JSON file
+    fs.writeFileSync(
+      path.join(__dirname, 'artists_by_genre.json'),
+      JSON.stringify(genresList, null, 2)
+    );
+    console.log('Artists grouped by genre saved to artists_by_genre.json');
+
+    // --- End of New Block ---
+
     // --- Spotify Wrapped Insights Processing ---
 
     // Initialize an array to hold all streaming data
@@ -385,31 +609,7 @@ app.post('/upload', upload.single('datafile'), async (req, res) => {
 
     // Sort the combined data by endTime
     allStreamingData.sort((a, b) => new Date(a.endTime) - new Date(b.endTime));
-
-    // Read artists_by_genre.json to get genres for artists
-    let artistByGenre = {};
-    let genresList = []; // Declare genresList in the outer scope
-    try {
-      const artistByGenrePath = path.join(__dirname, 'artists_by_genre.json');
-      const artistByGenreContents = fs.readFileSync(artistByGenrePath, 'utf8');
-      genresList = JSON.parse(artistByGenreContents);
-
-      // Build a mapping from artist name to genres
-      genresList.forEach((genreEntry) => {
-        const genre = genreEntry.genre;
-        genreEntry.artists.forEach((artistObj) => {
-          const artistName = artistObj.name;
-          if (!artistByGenre[artistName]) {
-            artistByGenre[artistName] = new Set();
-          }
-          artistByGenre[artistName].add(genre);
-        });
-      });
-    } catch (error) {
-      console.error('Error loading artists_by_genre.json:', error);
-      artistByGenre = {};
-    }
-
+    
     // --- Compute Spotify Wrapped Insights ---
 
     // Helper function to format milliseconds to readable time
@@ -478,34 +678,59 @@ app.post('/upload', upload.single('datafile'), async (req, res) => {
       }));
 
     // Insight 3: Top Genre
-    // Compute total playtime per genre
+    // Compute total playtime per genre using the pre-generated artists_by_genre.json
+
+    // Step 1: Load the 'artists_by_genre.json' file
+    let artistsByGenre = [];
+
+    try {
+      const artistsByGenrePath = path.join(__dirname, 'artists_by_genre.json');
+      const artistsByGenreContents = fs.readFileSync(artistsByGenrePath, 'utf8');
+      artistsByGenre = JSON.parse(artistsByGenreContents); // Parse the JSON file
+    } catch (error) {
+      console.error('Error loading artists_by_genre.json:', error);
+      artistsByGenre = []; // Fallback in case the file can't be loaded
+    }
+
+    // Step 2: Initialize an object to store total playtime per genre
     const genrePlaytime = {};
 
+    // Step 3: Process all streaming data to calculate playtime per genre
     allStreamingData.forEach((entry) => {
-      const artistName = entry.artistName || 'Unknown Artist';
+      const artistName = entry.artistName || 'Unknown Artist'; // Ensure we have the artist name
       const msPlayed = entry.msPlayed;
 
-      const genres = artistByGenre[artistName]
-        ? Array.from(artistByGenre[artistName])
-        : ['Unknown Genre'];
+      // Find the artist and associated genre(s) from the loaded 'artists_by_genre.json' data
+      const genreData = artistsByGenre.find((genreItem) =>
+        genreItem.artists.some((artist) => artist.name === artistName)
+      );
 
+      // If genre is found, aggregate the playtime by genre
+      const genres = genreData ? [genreData.genre] : ['Unknown Genre'];
+
+      // Add playtime for each genre, ensuring 'Unknown Genre' is ignored when calculating top genres
       genres.forEach((genre) => {
-        if (!genrePlaytime[genre]) {
-          genrePlaytime[genre] = 0;
+        if (genre !== 'Unknown Genre') {
+          if (!genrePlaytime[genre]) {
+            genrePlaytime[genre] = 0;
+          }
+          genrePlaytime[genre] += msPlayed;
         }
-        genrePlaytime[genre] += msPlayed;
       });
     });
 
-    // Get top genres
+    // Step 4: Get top genres, excluding 'Unknown Genre'
     const topGenres = Object.entries(genrePlaytime)
-      .sort((a, b) => b[1] - a[1]) // Sort by playtime descending
-      .slice(0, 5)
+      .sort(([, playtimeA], [, playtimeB]) => playtimeB - playtimeA) // Sort by playtime descending
+      .slice(0, 5) // Get the top 5 genres
       .map(([genre, playtime]) => ({
         genre,
         playtimeMs: playtime,
-        playtime: msToReadableTime(playtime),
+        playtime: msToReadableTime(playtime), // Convert playtime to a readable format
       }));
+
+    // Log the top genres for debugging
+    console.log(topGenres);
 
     // Insight 4a: Top Listening Days of the Week
     const dayOfWeekPlaytime = {};
