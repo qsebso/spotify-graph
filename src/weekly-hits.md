@@ -49,17 +49,26 @@
     fetch("http://localhost:8888/non_cumulative_songs")
       .then(response => {
         if (!response.ok) {
-          throw new Error('Non-cumulative songs data not found, falling back to sample data.');
+          throw new Error('Non-cumulative songs data not found.');
         }
         return response.json();
       })
       .then(data => {
+        console.log("Loaded non-cumulative songs data:", data); // Log the data
         createTopSongsChart(data);
       })
       .catch(() => {
-        fetch("http://localhost:8888/sample_non_cumulative_songs")
-          .then(response => response.json())
+        // Fallback to sample data
+        console.warn('Falling back to sample data...');
+        return fetch("http://localhost:8888/sample_non_cumulative_songs")
+          .then(sampleResponse => {
+            if (!sampleResponse.ok) {
+              throw new Error('Sample data not found.');
+            }
+            return sampleResponse.json();
+          })
           .then(sampleData => {
+            console.log("Loaded sample songs data:", sampleData); // Log the sample data
             createTopSongsChart(sampleData);
           })
           .catch(error => {
@@ -69,6 +78,7 @@
   }
 
   function createTopSongsChart(weeklyData) {
+    console.log("Weekly data for the chart:", weeklyData); // Log the weekly data used for the chart
     const weeks = Object.keys(weeklyData);
     
     // Create a dropdown for the weeks
@@ -88,6 +98,16 @@
 
     // Function to update the chart based on selected week
     function updateChart(data) {
+      console.log("Data for the selected week:", data); // Log the data for the selected week
+
+      // Transform the nested data into the format expected by the chart
+      const transformedData = data.map(songData => {
+        return {
+          name: songData[0],  // Song name
+          playtime: songData[1]  // Playtime in milliseconds
+        };
+      });
+
       const margin = { top: 30, right: 20, bottom: 100, left: 80 };
       const width = 1000 - margin.left - margin.right;
       const height = 600 - margin.top - margin.bottom;
@@ -102,12 +122,12 @@
         .attr("transform", `translate(${margin.left},${margin.top})`);
 
       const x = d3.scaleBand()
-        .domain(data.map(d => d.name))
+        .domain(transformedData.map(d => d.name))
         .range([0, width])
         .padding(0.2);
 
       const y = d3.scaleLinear()
-        .domain([0, d3.max(data, d => d.playtime / 60000)])  // Convert ms to minutes
+        .domain([0, d3.max(transformedData, d => d.playtime / 60000)])  // Convert ms to minutes
         .nice()
         .range([height, 0]);
 
@@ -136,7 +156,7 @@
       const tooltip = d3.select("#tooltip");
 
       svg.selectAll(".bar")
-        .data(data)
+        .data(transformedData)
         .enter()
         .append("rect")
         .attr("class", "bar")
