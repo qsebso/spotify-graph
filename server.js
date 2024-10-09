@@ -977,9 +977,9 @@ app.post('/upload', upload.single('datafile'), async (req, res) => {
       { name: "New Year’s Day", date: "01-01" },
       { name: "Valentine’s Day", date: "02-14" },
       { name: "St. Patrick’s Day", date: "03-17" },
-      { name: " Cinco de Mayo", date: "05-17"},
-      { name: "Mother's Day", date: "05-12"},
       { name: "Cinco de Mayo", date: "05-05" },
+      { name: "Mother's Day", date: "05-12"},
+      { name: "Father's Day", date: "06-15"},
       { name: "Independence Day", date: "07-04" },
       { name: "Halloween", date: "10-31" },
       { name: "Veterans Day", date: "11-11" },
@@ -1099,6 +1099,79 @@ app.post('/upload', upload.single('datafile'), async (req, res) => {
   }
   await clearUploadsFolder();
 });
+
+async function getArtistProfile(artistId) {
+  const token = await getSpotifyToken();
+  const url = `https://api.spotify.com/v1/artists/${artistId}`;
+  
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    // Extract artist profile picture from the response
+    const artistData = response.data;
+    const artistImageUrl = artistData.images[0]?.url || null; // Check if image exists
+    return artistImageUrl;
+  } catch (error) {
+    console.error('Error fetching artist profile:', error);
+    throw new Error('Unable to fetch artist profile');
+  }
+}
+
+async function getAlbumCover(albumId) {
+  const token = await getSpotifyToken();
+  const url = `https://api.spotify.com/v1/albums/${albumId}`;
+
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    // Extract album cover image from the response
+    const albumData = response.data;
+    const albumCoverUrl = albumData.images[0]?.url || null; // Check if cover exists
+    return albumCoverUrl;
+  } catch (error) {
+    console.error('Error fetching album cover:', error);
+    throw new Error('Unable to fetch album cover');
+  }
+}
+
+// Route to fetch artist profile picture
+app.get('/artist/:id/profile', async (req, res) => {
+  const artistId = req.params.id;
+  
+  try {
+    const artistImageUrl = await getArtistProfile(artistId);
+    if (!artistImageUrl) {
+      return res.status(404).json({ message: 'Artist profile image not found' });
+    }
+    res.json({ imageUrl: artistImageUrl });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch artist profile' });
+  }
+});
+
+// Route to fetch album cover
+app.get('/album/:id/cover', async (req, res) => {
+  const albumId = req.params.id;
+  
+  try {
+    const albumCoverUrl = await getAlbumCover(albumId);
+    if (!albumCoverUrl) {
+      return res.status(404).json({ message: 'Album cover not found' });
+    }
+    res.json({ coverUrl: albumCoverUrl });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch album cover' });
+  }
+});
+
 
 // Route to access spotify_wrapped.json
 app.get('/spotify_wrapped', (req, res) => {
@@ -1229,6 +1302,16 @@ app.get('/sample_artists_by_genre', (req, res) => {
 
     res.sendFile(filePath);
   });
+});
+
+// API route to provide token to frontend
+app.get('/spotify_token', async (req, res) => {
+  try {
+    const token = await getSpotifyToken();
+    res.json({ token });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to retrieve token' });
+  }
 });
 
 // Route to access uploaded files
