@@ -269,8 +269,12 @@
           return response.json(); // Parse the user data if available
         })
         .then(data => {
+          // Assign the data to the global spotifyData variable
+          spotifyData = data; 
+          console.log("Spotify Data Loaded:", spotifyData); // Log the data for debugging
+
           // Process the data and create the Spotify Wrapped display
-          createWrappedDisplay(data);
+          createWrappedDisplay(spotifyData);
         })
         .catch(() => {
           // If fetching user data fails, fetch the sample data from the provided endpoint
@@ -283,8 +287,12 @@
               return response.json();
             })
             .then(sampleData => {
+              // Assign the sample data to the global spotifyData variable
+              spotifyData = sampleData; 
+              console.log("Sample Spotify Data Loaded:", spotifyData); // Log the data for debugging
+
               // Process the sample data and create the Spotify Wrapped display
-              createWrappedDisplay(sampleData);
+              createWrappedDisplay(spotifyData);
             })
             .catch(error => {
               console.error("Error loading sample data:", error);
@@ -292,50 +300,50 @@
         });
     }
 
+
     function showHolidayTracks() {
       const selectedHoliday = document.getElementById('holidaySelect').value;
       const holidayInfoDiv = document.getElementById('holidayInfo');
 
-      if (!spotifyData || !spotifyData.holidayHighlights) {
+      console.log("Selected holiday:", selectedHoliday); // Add this line to verify that the holiday is being selected
+
+      // Ensure spotifyData is loaded and contains holidayHighlights
+      if (!spotifyData || !spotifyData.holidayHighlights || spotifyData.holidayHighlights.length === 0) {
         console.error("Spotify data or holiday highlights are not available.");
+        holidayInfoDiv.innerHTML = "No holiday highlights available."; // Show a message if holiday highlights are unavailable
         return;
       }
 
-      holidayInfoDiv.innerHTML = ''; // Clear previous content
+      const holiday = spotifyData.holidayHighlights.find(h => h.holiday === selectedHoliday);
+      console.log("Found holiday data:", holiday); // Add this line to verify that the selected holiday is found
 
-      if (selectedHoliday) {
-        const holiday = spotifyData.holidayHighlights.find(h => h.holiday === selectedHoliday);
+      if (holiday && holiday.topTracks && holiday.topTracks.length > 0) {
+        let trackListHTML = '<ul>';
 
-        if (holiday) {
-          let trackListHTML = '<ul>';
+        holiday.topTracks.forEach(track => {
+          const songWithArtist = track.song;
+          let songTitle = songWithArtist;
+          let artistName = '';
 
-          holiday.topTracks.forEach(track => {
-            // Extract song title and artist from the 'song' field
-            const songWithArtist = track.song;
-            let songTitle = songWithArtist;
-            let artistName = '';
+          const artistStartIndex = songWithArtist.lastIndexOf('(');
+          const artistEndIndex = songWithArtist.lastIndexOf(')');
 
-            const artistStartIndex = songWithArtist.lastIndexOf('(');
-            const artistEndIndex = songWithArtist.lastIndexOf(')');
+          if (artistStartIndex !== -1 && artistEndIndex !== -1 && artistEndIndex > artistStartIndex) {
+            songTitle = songWithArtist.substring(0, artistStartIndex).trim();
+            artistName = songWithArtist.substring(artistStartIndex + 1, artistEndIndex).trim();
+          }
 
-            if (artistStartIndex !== -1 && artistEndIndex !== -1 && artistEndIndex > artistStartIndex) {
-              songTitle = songWithArtist.substring(0, artistStartIndex).trim();
-              artistName = songWithArtist.substring(artistStartIndex + 1, artistEndIndex).trim();
-            }
+          const playtime = track.totalPlaytime;
 
-            // Include the playtime in the display
-            const playtime = track.totalPlaytime;
+          trackListHTML += `<li>${songTitle}${artistName ? ' by ' + artistName : ''} - ${playtime}</li>`;
+        });
 
-            // Build the list item with song title, artist, and playtime
-            trackListHTML += `<li>${songTitle}${artistName ? ' by ' + artistName : ''} - ${playtime}</li>`;
-          });
-
-          trackListHTML += '</ul>';
-          holidayInfoDiv.innerHTML = trackListHTML;
-        }
+        trackListHTML += '</ul>';
+        holidayInfoDiv.innerHTML = trackListHTML;
+      } else {
+        holidayInfoDiv.innerHTML = "No tracks found for the selected holiday."; // Fallback message
       }
     }
-
 
     async function searchArtist(artistName, token) {
       try {
