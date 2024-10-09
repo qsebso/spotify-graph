@@ -260,23 +260,31 @@
 
     // Function to load data and create charts
     function loadDataAndCreateCharts() {
+      // First try to fetch the user data (Spotify Wrapped)
       fetch("http://localhost:8888/spotify_wrapped")
         .then(response => {
           if (!response.ok) {
             throw new Error('Spotify Wrapped data not found, falling back to sample data.');
           }
-          return response.json();
+          return response.json(); // Parse the user data if available
         })
         .then(data => {
-          spotifyData = data; // Store data in global variable
-          createWrappedDisplay(spotifyData); // Use data in function
+          // Process the data and create the Spotify Wrapped display
+          createWrappedDisplay(data);
         })
         .catch(() => {
-          fetch("sample_spotify_wrapped.json")
-            .then(response => response.json())
+          // If fetching user data fails, fetch the sample data from the provided endpoint
+          console.warn("Spotify Wrapped data not available, loading sample data.");
+          fetch("http://localhost:8888/sample_spotify_wrapped")
+            .then(response => {
+              if (!response.ok) {
+                throw new Error('Sample Spotify Wrapped data not found.');
+              }
+              return response.json();
+            })
             .then(sampleData => {
-              spotifyData = sampleData; // Store sample data globally
-              createWrappedDisplay(spotifyData); // Use sample data
+              // Process the sample data and create the Spotify Wrapped display
+              createWrappedDisplay(sampleData);
             })
             .catch(error => {
               console.error("Error loading sample data:", error);
