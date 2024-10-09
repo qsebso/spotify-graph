@@ -156,6 +156,81 @@ function unzipFile(zipFilePath, unzipPath) {
   });
 }
 
+app.post('/get_recommendations', async (req, res) => {
+  const { genres, artists } = req.body;
+
+  if (!genres && !artists) {
+    return res.status(400).json({ error: 'Genres or artists are missing in the request' });
+  }
+
+  try {
+    // Fetch Spotify access token
+    const spotifyToken = await getSpotifyToken();
+
+    // Fetch valid genres from Spotify
+    const validGenresResponse = await axios.get('https://api.spotify.com/v1/recommendations/available-genre-seeds', {
+      headers: {
+        Authorization: `Bearer ${spotifyToken}`,
+      },
+    });
+    const validGenres = validGenresResponse.data.genres;
+
+    // Filter genres to only include valid seed genres
+    const seedGenres = genres.filter(genre => validGenres.includes(genre.toLowerCase()));
+
+    // Map artist names to Spotify IDs
+    const seedArtists = [];
+    for (const artistName of artists) {
+      const searchResponse = await axios.get('https://api.spotify.com/v1/search', {
+        headers: {
+          Authorization: `Bearer ${spotifyToken}`,
+        },
+        params: {
+          q: artistName,
+          type: 'artist',
+          limit: 1,
+        },
+      });
+
+      const artistItems = searchResponse.data.artists.items;
+      if (artistItems.length > 0) {
+        seedArtists.push(artistItems[0].id);
+      }
+    }
+
+    // Limit the number of seed parameters to 5
+    const totalSeeds = seedGenres.length + seedArtists.length;
+    if (totalSeeds > 5) {
+      // Adjust seeds to not exceed 5
+      seedGenres.splice(5 - seedArtists.length);
+    }
+
+    // Call Spotify recommendations API
+    const recommendationsResponse = await axios.get('https://api.spotify.com/v1/recommendations', {
+      headers: {
+        Authorization: `Bearer ${spotifyToken}`,
+      },
+      params: {
+        seed_genres: seedGenres.join(','),
+        seed_artists: seedArtists.join(','),
+        limit: 10,
+      },
+    });
+
+    // Extract relevant data
+    const tracks = recommendationsResponse.data.tracks.map(track => ({
+      artist: track.artists.map(artist => artist.name).join(', '),
+      track: track.name,
+      preview_url: track.preview_url,
+    }));
+
+    res.json(tracks);
+  } catch (error) {
+    console.error('Error fetching recommendations:', error.response ? error.response.data : error.message);
+    res.status(500).json({ error: 'Error fetching recommendations' });
+  }
+});
+
 // Function to recursively filter out files starting with "StreamingHistory_music"
 function filterStreamingHistoryFiles(directoryPath) {
   const relevantFiles = [];
