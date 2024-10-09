@@ -407,7 +407,7 @@
 
       // 1. Top 5 Songs of All Time
       createSection(`
-        <h2>Top 5 Songs of All Time</h2>
+        <h2>Top 5 Songs of The Year</h2>
         <div id="topSongsCards" class="card-container"></div>
         <div class="chart-container">
           <canvas id="topSongsChart"></canvas>
