@@ -103,8 +103,8 @@
       // Transform the nested data into the format expected by the chart
       const transformedData = data.map(songData => {
         return {
-          name: songData[0],  // Song name
-          playtime: songData[1]  // Playtime in milliseconds
+          name: songData.name,
+          playtime: songData.playtime ? songData.playtime : 0  // Default to 0 if playtime is missing
         };
       });
 
@@ -127,7 +127,7 @@
         .padding(0.2);
 
       const y = d3.scaleLinear()
-        .domain([0, d3.max(transformedData, d => d.playtime / 60000)])  // Convert ms to minutes
+        .domain([0, d3.max(transformedData, d => isNaN(d.playtime) ? 0 : d.playtime / 60000)])  // Handle NaN values
         .nice()
         .range([height, 0]);
 
