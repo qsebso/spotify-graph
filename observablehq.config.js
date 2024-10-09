@@ -12,6 +12,7 @@ export default {
     { name: "Weekly Top 10", path: "/weekly-hits" },
     { name: "Artist & Genre Recommendations", path: "/sunburst-diagram" },
     { name: "Spotify Wrapped", path: "/spotify-wrapped" },
+    { name: "About My Data", path: "/wrapped-about" },
     { name: "How do I get my Data?", path: "/help-page" }
   ],
 
