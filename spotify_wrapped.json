@@ -709,33 +709,33 @@
       ]
     },
     {
-      "holiday": " Cinco de Mayo",
-      "date": "2024-05-16 22:31",
+      "holiday": "Father's Day",
+      "date": "2024-06-15 01:15",
       "topTracks": [
         {
-          "song": "deepfake (brakence)",
-          "totalPlaytimeMs": 330640,
+          "song": "Caring Is Creepy - 2021 Remaster (The Shins)",
+          "totalPlaytimeMs": 597159,
+          "totalPlaytime": "10 min"
+        },
+        {
+          "song": "Adventure of a Lifetime (Coldplay)",
+          "totalPlaytimeMs": 527572,
+          "totalPlaytime": "9 min"
+        },
+        {
+          "song": "is suicide too much? (re6ce)",
+          "totalPlaytimeMs": 379226,
           "totalPlaytime": "6 min"
         },
         {
-          "song": "Lord Knows (Drake)",
-          "totalPlaytimeMs": 306874,
+          "song": "BTBT (B.I)",
+          "totalPlaytimeMs": 280659,
           "totalPlaytime": "5 min"
         },
         {
-          "song": "venus fly trap (brakence)",
-          "totalPlaytimeMs": 295786,
+          "song": "Don't Panic (Coldplay)",
+          "totalPlaytimeMs": 275012,
           "totalPlaytime": "5 min"
-        },
-        {
-          "song": "WOW (with A$AP Rocky) (Kid Cudi)",
-          "totalPlaytimeMs": 274200,
-          "totalPlaytime": "5 min"
-        },
-        {
-          "song": "Weight Of The World (Jon Bellion)",
-          "totalPlaytimeMs": 269971,
-          "totalPlaytime": "4 min"
         }
       ]
     },
