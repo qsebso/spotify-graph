@@ -41,17 +41,48 @@ const upload = multer({ storage });
 app.use('/uploads', express.static('uploads'));
 
 // Serve static files from the 'src' folder
-app.use(express.static(path.join(__dirname, 'src')));  // Replace 'src' with your actual folder if needed
+app.use(express.static(path.join(__dirname, 'src')));
 
-// Root route to serve the frontend (index.html)
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'src', 'index.html')); // Adjust path as needed
+// Middleware to render Markdown files as HTML
+app.get('/*.md', (req, res) => {
+  const filePath = path.join(__dirname, 'src', req.path); // Path to the .md file
+  fs.readFile(filePath, 'utf8', (err, data) => {
+    if (err) {
+      return res.status(404).send('File not found');
+    }
+
+    const htmlContent = marked(data); // Convert markdown to HTML
+    res.send(`
+      <html>
+      <head>
+        <title>${req.path}</title>
+      </head>
+      <body>${htmlContent}</body>
+      </html>
+    `);
+  });
 });
 
-// Fallback route to serve frontend on any unmatched routes
+// Catch-all route to serve index.md if no route is matched
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'src', 'index.html'));  // Serve the frontend for all other routes
+  const filePath = path.join(__dirname, 'src', 'index.md');
+  fs.readFile(filePath, 'utf8', (err, data) => {
+    if (err) {
+      return res.status(404).send('File not found');
+    }
+
+    const htmlContent = marked(data); // Convert markdown to HTML
+    res.send(`
+      <html>
+      <head>
+        <title>Home</title>
+      </head>
+      <body>${htmlContent}</body>
+      </html>
+    `);
+  });
 });
+
 
 // Function to get Spotify token
 async function getSpotifyToken() {
