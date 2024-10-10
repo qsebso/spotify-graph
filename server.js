@@ -9,7 +9,6 @@ import dotenv from 'dotenv';
 import unzipper from 'unzipper';
 import axios from 'axios';
 import pLimit from 'p-limit';
-import marked from 'marked';
 
 // Define constants for easy adjustments
 const TOP_N = 10; // Modify this number to adjust how many top songs to select
@@ -41,49 +40,10 @@ const upload = multer({ storage });
 // Serve the uploads folder statically
 app.use('/uploads', express.static('uploads'));
 
-// Serve static files from the 'src' folder
-app.use(express.static(path.join(__dirname, 'src')));
-
-// Middleware to render Markdown files as HTML
-app.get('/*.md', (req, res) => {
-  const filePath = path.join(__dirname, 'src', req.path); // Path to the .md file
-  fs.readFile(filePath, 'utf8', (err, data) => {
-    if (err) {
-      return res.status(404).send('File not found');
-    }
-
-    const htmlContent = marked(data); // Convert markdown to HTML
-    res.send(`
-      <html>
-      <head>
-        <title>${req.path}</title>
-      </head>
-      <body>${htmlContent}</body>
-      </html>
-    `);
-  });
+// Root route to handle "/"
+app.get('/', (req, res) => {
+  res.send('Welcome to the Spotify API!');
 });
-
-// Catch-all route to serve index.md if no route is matched
-app.get('*', (req, res) => {
-  const filePath = path.join(__dirname, 'src', 'index.md');
-  fs.readFile(filePath, 'utf8', (err, data) => {
-    if (err) {
-      return res.status(404).send('File not found');
-    }
-
-    const htmlContent = marked(data); // Convert markdown to HTML
-    res.send(`
-      <html>
-      <head>
-        <title>Home</title>
-      </head>
-      <body>${htmlContent}</body>
-      </html>
-    `);
-  });
-});
-
 
 // Function to get Spotify token
 async function getSpotifyToken() {
@@ -1511,6 +1471,7 @@ app.get('/album/:id/cover', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch album cover' });
   }
 });
+
 
 // Route to access spotify_wrapped.json
 app.get('/spotify_wrapped', (req, res) => {
