@@ -1604,6 +1604,14 @@ app.get('/sample_artists_by_genre', (req, res) => {
   });
 });
 
+// Serve static files from the 'src' folder
+app.use(express.static(path.join(__dirname, 'src')));
+
+// Catch-all route to serve 'index.md' for any route not handled by other middleware
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'src', 'index.md')); // Send the HTML version of the index.md
+});
+
 // API route to provide token to frontend
 app.get('/spotify_token', async (req, res) => {
   try {
