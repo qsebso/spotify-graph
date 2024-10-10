@@ -1604,6 +1604,25 @@ app.get('/sample_artists_by_genre', (req, res) => {
   });
 });
 
+// Route to serve the index.md file
+app.get('/index.md', (req, res) => {
+  const markdownFilePath = path.join(__dirname, 'src', 'index.md'); // Assuming index.md is in the src folder
+
+  // Read the markdown file
+  fs.readFile(markdownFilePath, 'utf8', (err, markdownContent) => {
+    if (err) {
+      console.error('Error reading index.md:', err);
+      return res.status(500).send('Error reading the markdown file.');
+    }
+
+    // Convert the markdown content to HTML
+    const htmlContent = marked(markdownContent);
+
+    // Send the HTML content back as the response
+    res.send(htmlContent);
+  });
+});
+
 // API route to provide token to frontend
 app.get('/spotify_token', async (req, res) => {
   try {
