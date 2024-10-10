@@ -40,9 +40,17 @@ const upload = multer({ storage });
 // Serve the uploads folder statically
 app.use('/uploads', express.static('uploads'));
 
-// Root route to handle "/"
+// Serve static files from the 'src' folder
+app.use(express.static(path.join(__dirname, 'src')));  // Replace 'src' with your actual folder if needed
+
+// Root route to serve the frontend (index.html)
 app.get('/', (req, res) => {
-  res.send('Welcome to the Spotify API!');
+  res.sendFile(path.join(__dirname, 'src', 'index.html')); // Adjust path as needed
+});
+
+// Fallback route to serve frontend on any unmatched routes
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'src', 'index.html'));  // Serve the frontend for all other routes
 });
 
 // Function to get Spotify token
@@ -1472,7 +1480,6 @@ app.get('/album/:id/cover', async (req, res) => {
   }
 });
 
-
 // Route to access spotify_wrapped.json
 app.get('/spotify_wrapped', (req, res) => {
   const filePath = path.join(__dirname, 'spotify_wrapped.json');
@@ -1602,14 +1609,6 @@ app.get('/sample_artists_by_genre', (req, res) => {
 
     res.sendFile(filePath);
   });
-});
-
-// Serve static files from the 'src' folder
-app.use(express.static(path.join(__dirname, 'src')));
-
-// Catch-all route to serve 'index.md' for any route not handled by other middleware
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'src', 'index.md')); // Send the HTML version of the index.md
 });
 
 // API route to provide token to frontend
