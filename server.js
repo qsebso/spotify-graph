@@ -9,6 +9,7 @@ import dotenv from 'dotenv';
 import unzipper from 'unzipper';
 import axios from 'axios';
 import pLimit from 'p-limit';
+import marked from 'marked';
 
 // Define constants for easy adjustments
 const TOP_N = 10; // Modify this number to adjust how many top songs to select
