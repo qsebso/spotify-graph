@@ -1604,10 +1604,6 @@ app.get('/sample_artists_by_genre', (req, res) => {
   });
 });
 
-app.get('/index', (req, res) => {
-  res.sendFile(path.join(__dirname, 'src', 'index.md')); // Send the static HTML file
-});
-
 // API route to provide token to frontend
 app.get('/spotify_token', async (req, res) => {
   try {
